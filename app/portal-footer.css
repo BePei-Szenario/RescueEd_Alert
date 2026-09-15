@@ -1,0 +1,42 @@
+.portal{display:flex;flex-direction:column;border-bottom:4px solid #1769e0}
+.portalbody{flex:1}
+.portal-session-loading{display:grid;min-height:100vh;place-items:center;color:#64748b;font-weight:700}
+.portalfooter{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:min(1160px,calc(100% - 40px));margin:auto;border-top:1px solid #cbd8e8;padding:1rem 0;color:#64748b;font-size:.75rem}
+.portalfooter>div{display:flex;gap:1rem}
+.portalfooter button{border:0;background:transparent;color:#1769e0;font:inherit;font-weight:750;cursor:pointer}
+.portalfooter button:hover{text-decoration:underline;text-underline-offset:3px}
+.portalfooter button:disabled{opacity:.55}
+.portalfooter .account-delete-link{color:#b91c1c}
+.portalfooter p{margin:0;text-align:right}
+.portal-legal-overlay{position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:#020b18bf;padding:1rem;backdrop-filter:blur(6px)}
+.portal-legal-modal{display:flex;max-height:min(760px,90vh);width:min(760px,100%);flex-direction:column;overflow:hidden;border:1px solid #dce5ef;border-radius:1rem;background:#fff;color:#10223d;box-shadow:0 30px 100px #0008}
+.portal-legal-modal>header{padding:1.5rem 1.5rem 1rem}
+.portal-legal-modal header span{display:inline-block;border-radius:99px;background:#fff0d8;padding:.3rem .6rem;color:#835400;font-size:.72rem;font-weight:800}
+.portal-legal-modal h2{margin:.7rem 0 .2rem;font-size:1.6rem;font-weight:850}
+.portal-legal-modal small{color:#64748b}
+.portal-legal-content{overflow-y:auto;border-block:1px solid #dce5ef;padding:1rem 1.5rem;line-height:1.65}
+.portal-legal-content p{margin:.55rem 0}
+.portal-legal-modal>footer{display:flex;justify-content:flex-end;padding:1rem 1.5rem}
+.portal-legal-modal>footer button{min-width:7rem;border-radius:.65rem;background:#1769e0;padding:.7rem 1rem;color:#fff;font-weight:800}
+.portal-legal-modal>footer button:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.account-delete-modal{width:min(610px,100%)}
+.account-delete-modal form>header{display:flex;align-items:flex-start;gap:1rem;padding:1.5rem 1.5rem 1rem}
+.account-delete-modal form>header>svg{flex:0 0 auto;width:2rem;height:2rem;border-radius:.65rem;background:#fee2e2;padding:.45rem;color:#b91c1c}
+.account-delete-modal form>header h2{margin:0 0 .35rem}
+.account-delete-modal form>header p,.account-delete-success p{margin:0;color:#64748b;line-height:1.5}
+.account-delete-body{display:grid;gap:1rem;border-block:1px solid #dce5ef;padding:1.15rem 1.5rem}
+.account-delete-body>label:first-child{display:grid;gap:.4rem;font-size:.8rem;font-weight:800}
+.account-delete-body input[type=password]{width:100%;border:1px solid #c8d7e8;border-radius:.6rem;padding:.75rem;font:inherit}
+.account-delete-confirm{display:flex;align-items:flex-start;gap:.65rem;font-size:.82rem;line-height:1.45}
+.account-delete-confirm input{flex:0 0 auto;width:1.05rem;height:1.05rem;margin-top:.1rem;accent-color:#dc2626}
+.account-delete-retention{margin:0;border-radius:.65rem;background:#fff7ed;padding:.8rem;color:#7c4a13;font-size:.78rem;line-height:1.5}
+.account-delete-error{margin:0;color:#b91c1c;font-size:.82rem;font-weight:750}
+.account-delete-modal form>footer{display:flex;justify-content:flex-end;gap:.75rem;padding:1rem 1.5rem}
+.account-delete-modal form>footer button{border:0;border-radius:.65rem;padding:.72rem 1rem;font-weight:800;cursor:pointer}
+.account-delete-modal form>footer button:disabled{cursor:not-allowed;opacity:.5}
+.account-delete-cancel{background:#e8eef6;color:#17314f}
+.account-delete-submit{background:#dc2626;color:#fff}
+.account-delete-success{display:flex;align-items:flex-start;gap:1rem}
+.account-delete-success>svg{flex:0 0 auto;width:2.2rem;height:2.2rem;border-radius:50%;background:#dcfce7;padding:.45rem;color:#087249}
+.account-delete-success h2{margin:0 0 .4rem}
+@media(max-width:760px){.portalfooter{align-items:flex-start;flex-direction:column}.portalfooter p{text-align:left}}

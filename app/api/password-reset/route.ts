@@ -1,17 +1,19 @@
-import {and,eq,gt,isNull} from "drizzle-orm";
+import {and,eq,gt,inArray,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
 import {auditLogs,legalAcceptances,organizations,pendingRegistrations,securityTokens,sessions,users} from "@/db/schema";
 import {hashSecret,id,tokenHash} from "@/lib/security";
+import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 
 export async function POST(request:Request){
  try{
   const bad=rejectCrossSiteMutation(request);if(bad)return bad;
   const {token,password}=await request.json() as {token?:string;password?:string};
-  if(!token||!password||password.length<12)return Response.json({error:"Ein Passwort mit mindestens 12 Zeichen ist erforderlich."},{status:400});
+  if(!token||token.length>200||!password||password.length<12||password.length>1024)return Response.json({error:"Ein Passwort mit mindestens 12 Zeichen ist erforderlich."},{status:400});
+  const limit=await consumeRateLimit({scope:"password-reset-network",subject:requestNetwork(request),limit:30,windowMs:60*60_000});if(!limit.allowed)return rateLimited(limit.retryAfterSeconds);
   const db=getDb(),hash=await tokenHash(token),now=new Date();
-  const [record]=await db.select().from(securityTokens).where(and(eq(securityTokens.tokenHash,hash),isNull(securityTokens.usedAt),gt(securityTokens.expiresAt,now))).limit(1);
-  if(record&&["password_setup","password_reset"].includes(record.purpose)){
+  const [record]=await db.select().from(securityTokens).where(and(eq(securityTokens.tokenHash,hash),inArray(securityTokens.purpose,["password_setup","password_reset"]),isNull(securityTokens.usedAt),gt(securityTokens.expiresAt,now))).limit(1);
+  if(record){
    await db.batch([db.update(users).set({passwordHash:await hashSecret(password),emailVerifiedAt:now,status:"active"}).where(eq(users.id,record.userId)),db.update(securityTokens).set({usedAt:now}).where(eq(securityTokens.id,record.id)),db.delete(sessions).where(eq(sessions.userId,record.userId)),db.insert(auditLogs).values({id:id("aud"),actorUserId:record.userId,action:"password.changed",entityType:"user",entityId:record.userId,createdAt:now})]);
    return Response.json({ok:true,type:"password_reset"});
   }

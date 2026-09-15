@@ -4,6 +4,7 @@
 .pricebox .pricebreakdown span{color:#64748b;font-size:.8rem}
 .pricebox .pricebreakdown b{color:#10223d;font-size:.85rem}
 .pricebox button:disabled{cursor:not-allowed;opacity:.65}
+.pricebox button.complimentary-order{background:#1769e0;box-shadow:0 6px 18px #1769e02e}
 .confirmation-backdrop{position:fixed;z-index:50;inset:0;display:grid;place-items:center;background:#071a33b8;padding:1.25rem}
 .confirmation-dialog{width:min(31rem,100%);border-radius:1rem;background:#fff;padding:2rem;text-align:center;box-shadow:0 24px 80px #02061766}
 .confirmation-icon{display:grid;width:3.5rem;height:3.5rem;margin:0 auto 1rem;place-items:center;border-radius:50%;background:#e8f7f1;color:#07835c}

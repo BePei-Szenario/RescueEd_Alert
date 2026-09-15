@@ -2,6 +2,7 @@ type EventSummary={
  event:{id:string;name:string;eventDate:string;startTime:string|null;endTime:string|null;helperLimit:number;priceCents:number;currency:string;status:string;createdAt:Date|string};
  invoice:{id:string;recipientName:string;street:string;postalCode:string;city:string;email:string;status:string}|null;
  helpers:Array<{firstName:string|null;lastName:string|null;name:string;qualification:string;registeredAt:Date|string;removedAt:Date|string|null;assignmentName:string|null}>;
+ alarms?:Array<{createdAt:Date|string;assignmentNames:string[];message:string|null}>;
  generatedAt?:Date;
 };
 
@@ -42,6 +43,12 @@ export function createEventSummaryPdf(input:EventSummary){
   cells.forEach((_,i)=>wrapped[i].forEach((value,row)=>page.push(text(value,cols[i]+5,y-11-row*10,7.5,i===0,INK))));
   for(let i=1;i<cols.length;i++)page.push(line(cols[i],y+4,cols[i],y-height+4));page.push(line(MARGIN,y-height+4,PAGE_W-MARGIN,y-height+4));y-=height;
  }
+ section("Alarmprotokoll");
+ const alarmCols=[MARGIN,MARGIN+92,MARGIN+280],alarmWidths=[88,184,231];
+ const alarmHeader=()=>{ensure(34);page.push(rect(MARGIN,y-23,PAGE_W-MARGIN*2,28,BLUE));["Alarmiert um","Sanitaetsmittel","Alarmmeldung"].forEach((value,index)=>page.push(text(value,alarmCols[index]+5,y-13,7,true,[1,1,1])));y-=30};
+ alarmHeader();
+ if(!input.alarms?.length){page.push(text("Keine Alarmierungen protokolliert.",MARGIN+7,y-15,9));y-=32}
+ for(const alarm of input.alarms||[]){const cells=[`${date(alarm.createdAt)}, ${time(alarm.createdAt)} Uhr`,alarm.assignmentNames.join(", "),alarm.message||"Ohne zusaetzliche Meldung"],wrapped=cells.map((cell,index)=>wrap(cell,Math.max(8,Math.floor(alarmWidths[index]/5.5)))),height=Math.max(34,wrapped.reduce((maximum,cell)=>Math.max(maximum,cell.length),1)*10+14);if(y-height<58){newPage();section("Alarmprotokoll - Fortsetzung");alarmHeader()}page.push(rect(MARGIN,y-height+4,PAGE_W-MARGIN*2,height,y%2?LIGHT:[1,1,1]));wrapped.forEach((cell,index)=>cell.forEach((value,row)=>page.push(text(value,alarmCols[index]+5,y-11-row*10,7.5,index===1,INK))));for(let index=1;index<alarmCols.length;index++)page.push(line(alarmCols[index],y+4,alarmCols[index],y-height+4));page.push(line(MARGIN,y-height+4,PAGE_W-MARGIN,y-height+4));y-=height}
  pages.push(page);
  pages.forEach((commands,index)=>{commands.push(line(MARGIN,42,PAGE_W-MARGIN,42),text("RescueEd - Email: info@rescueed.de - Telefon: /49 3601/ 80 80 191",MARGIN,26,7,false,MUTED),text(`Seite ${index+1} von ${pages.length}`,PAGE_W-MARGIN-62,26,7,false,MUTED))});
  const objects:string[]=["<< /Type /Catalog /Pages 2 0 R >>","", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"];

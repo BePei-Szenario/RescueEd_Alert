@@ -1,0 +1,1 @@
+ALTER TABLE `assignments` ADD `removed_at` integer;
