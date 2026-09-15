@@ -1,0 +1,37 @@
+// @ts-nocheck -- Response.json is typed as unknown by the current Vinext DOM shim.
+"use client";
+import {useState} from "react";
+import {ArrowRight,Building2,Check,KeyRound,LockKeyhole,Mail,MapPin,Users} from "lucide-react";
+import {RescueEdLogo} from "@/components/brand-logo";
+import "./flows.css";
+import "./connected-auth.css";
+
+function Shell({back,title,copy,children,wide=false}:{back:()=>void;title:string;copy:string;children:React.ReactNode;wide?:boolean}){return <main className="loginpage"><button className="backhome" onClick={back}>← Zurück</button><section className={`loginbox ${wide?"registerbox":""}`}><div className="loginbrand"><RescueEdLogo className="brand-logo--auth"/><h1>RescueEd Alert</h1><p>Sichere Alarmierung auf Ihrem Sanitätsdienst</p></div><div className="loginform"><h2>{title}</h2><p>{copy}</p>{children}</div></section></main>}
+function Field({label,icon,children}:{label:string;icon:React.ReactNode;children:React.ReactNode}){return <label>{label}<div>{icon}{children}</div></label>}
+
+export function ConnectedRegister({back}:{back:()=>void;submit:()=>void}){
+ const [error,setError]=useState(""),[busy,setBusy]=useState(false),[done,setDone]=useState(false),[previewUrl,setPreviewUrl]=useState(""),[checks,setChecks]=useState({terms:false,privacy:false,avv:false});
+ const all=checks.terms&&checks.privacy&&checks.avv;
+ async function register(e:React.FormEvent<HTMLFormElement>){
+  e.preventDefault();setBusy(true);setError("");const f=new FormData(e.currentTarget);
+  const response=await fetch("/api/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({organization:f.get("organization"),contactName:f.get("contactName"),street:f.get("street"),houseNumber:f.get("houseNumber"),postalCode:f.get("postalCode"),city:f.get("city"),email:f.get("email"),termsAccepted:checks.terms,privacyAccepted:checks.privacy,avvAccepted:checks.avv})});
+  const data=await response.json();setBusy(false);if(!response.ok){setError(data.error);return}setPreviewUrl(data.previewUrl||"");setDone(true);
+ }
+ if(done)return <Shell back={back} wide title="Registrierungslink versendet" copy="Die Anfrage ist vorgemerkt. Das Kundenkonto wird erst angelegt, wenn über den Link ein Passwort gesetzt wurde."><div className="registration-success"><div><Check/></div><b>Bitte E-Mail-Postfach prüfen</b><p>Der Link ist 24 Stunden gültig und kann nur einmal verwendet werden.</p>{previewUrl&&<a href={previewUrl}>Lokalen Registrierungslink öffnen <ArrowRight size={17}/></a>}</div><button className="textlink" onClick={back}>Zur Anmeldung</button></Shell>;
+ return <Shell back={back} wide title="Konto erstellen" copy="Unternehmensdaten eintragen und die Registrierung per E-Mail-Link abschließen."><form className="authform registrationform" onSubmit={register}>
+  <Field label="Organisation" icon={<Building2/>}><input name="organization" autoComplete="organization" required/></Field>
+  <Field label="Ansprechpartner" icon={<Users/>}><input name="contactName" autoComplete="name" required/></Field>
+  <div className="registration-row"><Field label="Straße" icon={<MapPin/>}><input name="street" autoComplete="address-line1" required/></Field><Field label="Hausnummer" icon={<MapPin/>}><input name="houseNumber" required/></Field></div>
+  <div className="registration-row location"><Field label="PLZ" icon={<MapPin/>}><input name="postalCode" autoComplete="postal-code" required/></Field><Field label="Ort" icon={<MapPin/>}><input name="city" autoComplete="address-level2" required/></Field></div>
+  <Field label="E-Mail-Adresse" icon={<Mail/>}><input name="email" autoComplete="email" required type="email"/></Field>
+  <fieldset className="legalchecks"><legend>Rechtliche Bestätigungen</legend>
+   <label className="checkall"><input type="checkbox" checked={all} onChange={e=>setChecks({terms:e.target.checked,privacy:e.target.checked,avv:e.target.checked})}/><span><b>Alles bestätigen</b><small>Markiert alle nachfolgenden Dokumente als gelesen.</small></span></label>
+   <label><input type="checkbox" checked={checks.terms} onChange={e=>setChecks(x=>({...x,terms:e.target.checked}))}/><span>Ich habe die <a href="/rechtliches/agb" target="_blank">AGB</a> gelesen und akzeptiere sie.</span></label>
+   <label><input type="checkbox" checked={checks.privacy} onChange={e=>setChecks(x=>({...x,privacy:e.target.checked}))}/><span>Ich habe die <a href="/rechtliches/datenschutz" target="_blank">Datenschutzerklärung</a> gelesen.</span></label>
+   <label><input type="checkbox" checked={checks.avv} onChange={e=>setChecks(x=>({...x,avv:e.target.checked}))}/><span>Ich habe den <a href="/rechtliches/avv" target="_blank">AVV</a> gelesen.</span></label>
+  </fieldset>
+  {error&&<p className="autherror" role="alert">{error}</p>}<button disabled={busy||!all}>{busy?"Link wird erstellt …":<>Registrieren <ArrowRight size={18}/></>}</button>
+ </form><p className="legalfooter"><a href="/rechtliches/impressum" target="_blank">Impressum</a><a href="/rechtliches/sla" target="_blank">SLA</a></p><button className="textlink" onClick={back}>Bereits registriert? Zum Login</button></Shell>
+}
+
+export function ConnectedLogin({back,submit,register}:{back:()=>void;submit:()=>void;register:()=>void}){const [phase,setPhase]=useState<"login"|"mfa">("login"),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[userId,setUserId]=useState(""),[hint,setHint]=useState(""),[error,setError]=useState("");async function login(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setError("");const r=await fetch("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,password})}),d=await r.json();if(!r.ok){setError(d.error);return}setPassword("");setUserId(d.userId);setHint(d.previewCode?"Lokaler Sicherheitscode: "+d.previewCode:"Der Sicherheitscode wurde per E-Mail versendet.");setPhase("mfa")}async function verify(e:React.FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget),r=await fetch("/api/auth/mfa/verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({userId,code:f.get("code")})}),d=await r.json();if(!r.ok){setError(d.error);return}submit()}return <Shell back={back} title={phase==="login"?"Willkommen zurück":"Sicherheitscode"} copy={phase==="login"?"Melde dich mit deinem gespeicherten Konto an.":"Gib den sechsstelligen Sicherheitscode ein."}>{phase==="login"?<form key="login" className="authform" autoComplete="off" onSubmit={login}><Field label="E-Mail-Adresse" icon={<Mail/>}><input required type="email" autoComplete="off" data-1p-ignore data-lpignore="true" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Field label="Passwort" icon={<LockKeyhole/>}><input required type="password" autoComplete="off" data-1p-ignore data-lpignore="true" value={password} onChange={e=>setPassword(e.target.value)}/></Field>{error&&<p className="autherror">{error}</p>}<button>Anmelden <ArrowRight size={18}/></button></form>:<form key="security-code" className="authform" autoComplete="off" onSubmit={verify}><Field label="Sicherheitscode" icon={<KeyRound/>}><input name="code" required inputMode="numeric" autoComplete="one-time-code" maxLength={6}/></Field><p className="authhint">{hint}</p>{error&&<p className="autherror">{error}</p>}<button>Sicherheitscode bestätigen <ArrowRight size={18}/></button></form>}<button className="textlink" onClick={register}>Noch kein Konto? Jetzt registrieren</button></Shell>}

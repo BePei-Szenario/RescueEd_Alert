@@ -1,0 +1,19 @@
+.threecol{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:1rem}
+.profilehint{margin-top:.7rem;color:#64748b;font-size:.78rem}
+.pricebox .pricebreakdown{display:grid;grid-template-columns:1fr auto;gap:.35rem;border-block:1px solid #e2e8f0;padding:.8rem 0}
+.pricebox .pricebreakdown span{color:#64748b;font-size:.8rem}
+.pricebox .pricebreakdown b{color:#10223d;font-size:.85rem}
+.pricebox button:disabled{cursor:not-allowed;opacity:.65}
+.confirmation-backdrop{position:fixed;z-index:50;inset:0;display:grid;place-items:center;background:#071a33b8;padding:1.25rem}
+.confirmation-dialog{width:min(31rem,100%);border-radius:1rem;background:#fff;padding:2rem;text-align:center;box-shadow:0 24px 80px #02061766}
+.confirmation-icon{display:grid;width:3.5rem;height:3.5rem;margin:0 auto 1rem;place-items:center;border-radius:50%;background:#e8f7f1;color:#07835c}
+.confirmation-dialog h2{font-size:1.5rem;font-weight:850}
+.confirmation-dialog p{margin:1rem 0 1.5rem;color:#52647a;line-height:1.65}
+.confirmation-dialog button{min-width:8rem;border-radius:.7rem;background:#1769e0;padding:.8rem 1.2rem;color:#fff;font-weight:800}
+.order-review-dialog .order-event-name{margin:.9rem 0 .25rem;color:#10223d;font-size:1.1rem;font-weight:850}
+.order-review-dialog .order-event-name+p{margin:.25rem 0 1.5rem}
+.confirmation-actions{display:flex;justify-content:center;gap:.75rem}
+.confirmation-dialog .confirmation-cancel{background:#fff;color:#10223d;border:1px solid #cbd5e1}
+.confirmation-dialog button:disabled{cursor:not-allowed;opacity:.65}
+@media(max-width:760px){.threecol{grid-template-columns:1fr}}
+@media(max-width:520px){.confirmation-actions{flex-direction:column-reverse}.confirmation-actions button{width:100%}}

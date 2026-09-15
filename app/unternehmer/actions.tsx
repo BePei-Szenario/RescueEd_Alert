@@ -1,0 +1,10 @@
+// @ts-nocheck -- Response.json is typed as unknown by the current Vinext DOM shim.
+"use client";
+import {useRouter} from "next/navigation";
+import {useState} from "react";
+
+async function mutate(url:string,body:unknown){const r=await fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw new Error(d.error||"Aktion fehlgeschlagen.");return d}
+export function PasswordLinkButton({userId}:{userId:string}){const router=useRouter(),[busy,setBusy]=useState(false);return <button className="smallaction" disabled={busy} onClick={async()=>{setBusy(true);try{await mutate(`/api/unternehmer/users/${userId}/password-link`,{});router.refresh()}catch(e){alert(e instanceof Error?e.message:"Fehler")}finally{setBusy(false)}}}>{busy?"Wird erstellt …":"Passwortlink senden"}</button>}
+export function UserStatusButton({userId,status}:{userId:string;status:string}){const router=useRouter(),[busy,setBusy]=useState(false),next=status==="active"?"blocked":"active";return <button className={next==="blocked"?"smallaction danger":"smallaction"} disabled={busy} onClick={async()=>{setBusy(true);try{await mutate(`/api/unternehmer/users/${userId}/status`,{status:next});router.refresh()}catch(e){alert(e instanceof Error?e.message:"Fehler")}finally{setBusy(false)}}}>{next==="blocked"?"Sperren":"Entsperren"}</button>}
+export function InvoiceStatus({id,status}:{id:string;status:string}){const router=useRouter();return <select className="statusselect" value={status} onChange={async e=>{try{await mutate(`/api/unternehmer/invoices/${id}/status`,{status:e.target.value});router.refresh()}catch(err){alert(err instanceof Error?err.message:"Fehler")}}}><option value="pending">Offen</option><option value="sent">Versendet</option><option value="paid">Bezahlt</option><option value="cancelled">Storniert</option></select>}
+export function LogoutButton(){return <button className="logout" onClick={async()=>{await mutate("/api/auth/logout",{});location.href="/unternehmer/login"}}>Abmelden</button>}

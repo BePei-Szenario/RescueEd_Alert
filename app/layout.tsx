@@ -5,8 +5,8 @@ export const metadata: Metadata = {
   title: "RescueEd Alert",
   description: "Einchecken. Einteilen. Alarmieren. Schlanke Alarmierung für Sanitätsdienste.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/rescueed-alert-logo.png",
+    shortcut: "/rescueed-alert-logo.png",
   },
 };
 

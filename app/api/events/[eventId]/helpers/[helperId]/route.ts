@@ -1,0 +1,20 @@
+import {and,eq} from "drizzle-orm";
+import {getDb} from "@/db";
+import {assignments,helpers} from "@/db/schema";
+import {ownedEvent} from "@/lib/event-access";
+import {rejectCrossSiteMutation} from "@/lib/request-security";
+
+export async function PATCH(request:Request,{params}:{params:Promise<{eventId:string;helperId:string}>}){
+ try{
+  const bad=rejectCrossSiteMutation(request);if(bad)return bad;
+  const {eventId,helperId}=await params,{user,event}=await ownedEvent(eventId);
+  if(!user)return Response.json({error:"Bitte zuerst anmelden."},{status:401});
+  if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
+  const {assignmentId}=await request.json() as {assignmentId?:string|null},db=getDb();
+  if(assignmentId){const [unit]=await db.select({id:assignments.id}).from(assignments).where(and(eq(assignments.id,assignmentId),eq(assignments.eventId,event.id))).limit(1);if(!unit)return Response.json({error:"Sanitätsmittel nicht gefunden."},{status:400})}
+  const [person]=await db.select({id:helpers.id}).from(helpers).where(and(eq(helpers.id,helperId),eq(helpers.eventId,event.id))).limit(1);
+  if(!person)return Response.json({error:"Helfer nicht gefunden."},{status:404});
+  await db.update(helpers).set({assignmentId:assignmentId||null}).where(eq(helpers.id,helperId));
+  return Response.json({ok:true});
+ }catch(error){console.error("helper_assignment_failed",error);return Response.json({error:"Einteilung konnte nicht gespeichert werden."},{status:500})}
+}

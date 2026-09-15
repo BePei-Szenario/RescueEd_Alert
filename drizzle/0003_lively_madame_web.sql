@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `protected_account` integer DEFAULT false NOT NULL;
