@@ -108,6 +108,8 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 
 Replace the filename with the pending migration and `DB` with your D1 binding name if different. Use `.wrangler/state`, not `.wrangler/state/v3`; Wrangler adds the versioned directories. Do not replay migrations already applied locally. This updates only the preview database; publishing applies production migrations separately.
 
+RescueEd Alert: Migration `drizzle/0014_jittery_maverick.sql` adds immutable legal-text versions, individual organisation acknowledgements, and the pending-registration evidence field. Apply it to each target D1 database before deploying the matching code. Registration fails closed until AGB, Datenschutzerklärung, AVV, and SLA are published in the Unternehmerbereich. Existing password links without version-specific evidence must be requested again. Do not publish the bundled draft texts as real legal terms.
+
 ## Diagnostic Commands
 
 - `npm run install:ci`: perform the one locked dependency install

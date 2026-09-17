@@ -1,6 +1,7 @@
 import {and,eq,gt,inArray,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
-import {auditLogs,legalAcceptances,organizations,pendingRegistrations,securityTokens,sessions,users} from "@/db/schema";
+import {auditLogs,legalAcceptances,legalAcknowledgements,organizations,pendingRegistrations,securityTokens,sessions,users} from "@/db/schema";
+import {currentRegistrationDocuments,evidenceFor,type LegalEvidence} from "@/lib/legal-registration";
 import {hashSecret,id,tokenHash} from "@/lib/security";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
@@ -19,6 +20,11 @@ export async function POST(request:Request){
   }
   const [pending]=await db.select().from(pendingRegistrations).where(and(eq(pendingRegistrations.tokenHash,hash),isNull(pendingRegistrations.usedAt),gt(pendingRegistrations.expiresAt,now))).limit(1);
   if(!pending)return Response.json({error:"Der Passwortlink ist ungültig oder abgelaufen."},{status:400});
+  const currentDocuments=await currentRegistrationDocuments();
+  const currentEvidence=currentDocuments?evidenceFor(currentDocuments):null;
+  let acceptedEvidence:LegalEvidence[]=[];
+  try{acceptedEvidence=JSON.parse(pending.legalEvidenceJson||"[]") as LegalEvidence[]}catch{}
+  if(!currentEvidence||acceptedEvidence.length!==currentEvidence.length||currentEvidence.some(document=>!acceptedEvidence.some(accepted=>accepted.documentVersionId===document.documentVersionId&&accepted.documentHash===document.documentHash&&accepted.acknowledgementType===document.acknowledgementType)))return Response.json({error:"Die Rechtstexte wurden seit Ihrer Anmeldung geändert. Bitte registrieren Sie sich erneut und bestätigen Sie die aktuellen Fassungen."},{status:409});
   const [existing]=await db.select({id:users.id}).from(users).where(eq(users.email,pending.email)).limit(1);
   if(existing)return Response.json({error:"Für diese E-Mail-Adresse besteht bereits ein Konto."},{status:409});
   const organizationId=id("org"),userId=id("usr");
@@ -26,6 +32,7 @@ export async function POST(request:Request){
    db.insert(organizations).values({id:organizationId,name:pending.organizationName,billingEmail:pending.email,billingStreet:pending.street,billingHouseNumber:pending.houseNumber,billingPostalCode:pending.postalCode,billingCity:pending.city,createdAt:now}),
    db.insert(users).values({id:userId,organizationId,fullName:pending.contactName,email:pending.email,passwordHash:await hashSecret(password),emailVerifiedAt:now,status:"active",createdAt:now}),
    db.insert(legalAcceptances).values({id:id("consent"),userId,termsVersion:pending.termsVersion,privacyVersion:pending.privacyVersion,avvVersion:pending.avvVersion,acceptedAt:pending.acceptedAt,createdAt:now}),
+   ...currentEvidence.map(document=>db.insert(legalAcknowledgements).values({id:id("lack"),userId,organizationId,documentVersionId:document.documentVersionId,documentKey:document.documentKey,documentVersion:document.documentVersion,documentHash:document.documentHash,acknowledgementType:document.acknowledgementType,acceptedAt:pending.acceptedAt,createdAt:now})),
    db.delete(pendingRegistrations).where(eq(pendingRegistrations.id,pending.id)),
    db.insert(auditLogs).values({id:id("aud"),actorUserId:userId,action:"registration.completed",entityType:"user",entityId:userId,metadataJson:JSON.stringify({termsVersion:pending.termsVersion,privacyVersion:pending.privacyVersion,avvVersion:pending.avvVersion}),createdAt:now})
   ]);

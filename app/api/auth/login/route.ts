@@ -22,11 +22,12 @@ export async function POST(request:Request){
   if(!accountLimit.allowed)return rateLimited(accountLimit.retryAfterSeconds);
   const db=getDb(),[user]=await db.select().from(users).where(eq(users.email,normalizedEmail)).limit(1);
   const validPassword=await verifySecret(password,user?.passwordHash||DUMMY_HASH);
-  if(!user||user.status!=="active"||(area==="unternehmer"&&user.role!=="platform_owner")||!validPassword)return Response.json({error:"Anmeldedaten sind ungültig."},{status:401});
+  const allowedArea=area==="unternehmer"?user?.role==="platform_owner":area==="mobile_consumer"?user?.accountType==="consumer":user?.accountType==="organization";
+  if(!user||user.status!=="active"||!allowedArea||!validPassword)return Response.json({error:"Anmeldedaten sind ungültig."},{status:401});
   const issueLimit=await consumeRateLimit({scope:"mfa-issue-account",subject:user.id,limit:5,windowMs:10*60_000});
   if(!issueLimit.allowed)return rateLimited(issueLimit.retryAfterSeconds);
   await clearRateLimit("login-account-network",accountSubject);
-  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),challenge=crypto.randomUUID()+crypto.randomUUID(),now=new Date(),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail"),tokenId=id("sec"),challengeArea=area==="unternehmer"?"unternehmer":"customer";
+  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),challenge=crypto.randomUUID()+crypto.randomUUID(),now=new Date(),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail"),tokenId=id("sec"),challengeArea=area==="unternehmer"?"unternehmer":area==="mobile_consumer"?"mobile_consumer":"customer";
   const payload=await sensitiveEmailPayload(request,mailId,"mfa",emailPayload({template:"security_code",securityCode:code,expiresAt:expiresAt.toISOString(),message:"Mit diesem Sicherheitscode schließen Sie Ihre Anmeldung bei RescueEd Alert ab."}));
   await db.batch([
    db.insert(securityTokens).values({id:tokenId,userId:user.id,purpose:"mfa",tokenHash:await tokenHash(code),challengeHash:await tokenHash(challenge),challengeArea,expiresAt,createdAt:now}),

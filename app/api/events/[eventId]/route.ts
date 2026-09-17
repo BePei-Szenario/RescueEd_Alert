@@ -2,6 +2,7 @@ import {and,asc,eq,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
 import {alertAssignments,alerts,assignments,emailOutbox,events,helpers,invoiceRequests,users} from "@/db/schema";
 import {emailPayload} from "@/lib/email-signature";
+import {effectiveEventEndDate} from "@/lib/event-duration";
 import {senderFor} from "@/lib/email-settings";
 import {ownedEvent} from "@/lib/event-access";
 import {createEventSummaryPdf} from "@/lib/event-summary-pdf";
@@ -23,7 +24,7 @@ export async function GET(request:Request,{params}:{params:Promise<{eventId:stri
   const people=await db.select({id:helpers.id,name:helpers.name,firstName:helpers.firstName,lastName:helpers.lastName,qualification:helpers.qualification,assignmentId:helpers.assignmentId,assignmentName:assignments.name,registeredAt:helpers.registeredAt,removedAt:helpers.removedAt}).from(helpers).leftJoin(assignments,eq(helpers.assignmentId,assignments.id)).where(eq(helpers.eventId,event.id));
   people.sort((a,b)=>(a.lastName||a.name.split(/\s+/).at(-1)||a.name).localeCompare(b.lastName||b.name.split(/\s+/).at(-1)||b.name,"de",{sensitivity:"base"})||(a.firstName||a.name).localeCompare(b.firstName||b.name,"de",{sensitivity:"base"}));
   const origin=new URL(request.url).origin;
-  return Response.json({event:{id:event.id,name:event.name,eventDate:event.eventDate,startTime:event.startTime,endTime:event.endTime,helperLimit:event.helperLimit,priceCents:event.priceCents,currency:event.currency,status:event.status,createdAt:event.createdAt},invoice:invoice?{id:invoice.id,recipientName:invoice.recipientName,street:invoice.street,postalCode:invoice.postalCode,city:invoice.city,email:invoice.email,amountCents:invoice.amountCents,status:invoice.status,createdAt:invoice.createdAt}:null,assignments:units,helpers:people,attendanceLinks:{come:`${origin}/event-attendance?eventId=${encodeURIComponent(event.id)}&mode=come&code=${encodeURIComponent(checkInCode)}`,leave:`${origin}/event-attendance?eventId=${encodeURIComponent(event.id)}&mode=leave&code=${encodeURIComponent(checkOutCode)}`}});
+  return Response.json({event:{id:event.id,name:event.name,eventDate:event.eventDate,endDate:effectiveEventEndDate(event.eventDate,event.startTime,event.endDate,event.endTime),startTime:event.startTime,endTime:event.endTime,helperLimit:event.helperLimit,priceCents:event.priceCents,currency:event.currency,status:event.status,createdAt:event.createdAt},invoice:invoice?{id:invoice.id,recipientName:invoice.recipientName,street:invoice.street,postalCode:invoice.postalCode,city:invoice.city,email:invoice.email,amountCents:invoice.amountCents,status:invoice.status,createdAt:invoice.createdAt}:null,assignments:units,helpers:people,attendanceLinks:{come:`${origin}/event-attendance?eventId=${encodeURIComponent(event.id)}&mode=come&code=${encodeURIComponent(checkInCode)}`,leave:`${origin}/event-attendance?eventId=${encodeURIComponent(event.id)}&mode=leave&code=${encodeURIComponent(checkOutCode)}`}});
  }catch(error){console.error("event_detail_failed",error);return Response.json({error:"Eventdetails konnten nicht geladen werden."},{status:500})}
 }
 

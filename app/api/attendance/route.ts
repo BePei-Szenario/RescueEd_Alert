@@ -2,6 +2,7 @@ import {and,eq,isNull,sql} from "drizzle-orm";
 import {getDb} from "@/db";
 import {events,helpers} from "@/db/schema";
 import {attendanceWindowOpen} from "@/lib/attendance-window";
+import {effectiveEventEndDate} from "@/lib/event-duration";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {id,tokenHash} from "@/lib/security";
@@ -10,7 +11,7 @@ type Action="come"|"leave";
 async function publicEvent(eventId:string,code:string,action:Action){const [event]=await getDb().select().from(events).where(and(eq(events.id,eventId),eq(action==="come"?events.checkInCode:events.checkOutCode,code),eq(events.status,"active"))).limit(1);return event&&attendanceWindowOpen(event)?event:null}
 
 export async function GET(request:Request){
- try{const url=new URL(request.url),eventId=url.searchParams.get("eventId")||"",code=url.searchParams.get("code")||"",action=url.searchParams.get("mode")==="leave"?"leave":"come",event=await publicEvent(eventId,code,action);if(!event)return Response.json({error:"Dieser QR-Code ist ungültig oder nicht mehr aktiv."},{status:404});return Response.json({event:{id:event.id,name:event.name,eventDate:event.eventDate,startTime:event.startTime,endTime:event.endTime},action})}catch(error){console.error("attendance_info_failed",error);return Response.json({error:"Event konnte nicht geladen werden."},{status:500})}
+ try{const url=new URL(request.url),eventId=url.searchParams.get("eventId")||"",code=url.searchParams.get("code")||"",action=url.searchParams.get("mode")==="leave"?"leave":"come",event=await publicEvent(eventId,code,action);if(!event)return Response.json({error:"Dieser QR-Code ist ungültig oder nicht mehr aktiv."},{status:404});return Response.json({event:{id:event.id,name:event.name,eventDate:event.eventDate,endDate:effectiveEventEndDate(event.eventDate,event.startTime,event.endDate,event.endTime),startTime:event.startTime,endTime:event.endTime},action})}catch(error){console.error("attendance_info_failed",error);return Response.json({error:"Event konnte nicht geladen werden."},{status:500})}
 }
 
 export async function POST(request:Request){

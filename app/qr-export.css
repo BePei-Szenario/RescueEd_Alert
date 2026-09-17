@@ -1,0 +1,44 @@
+.qr-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .55rem;
+  width: 100%;
+}
+
+.qr-grid .qr-card-actions a,
+.qr-grid .qr-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  border: 1px solid #d5deea;
+  border-radius: .55rem;
+  background: #f8fbff;
+  padding: .55rem .65rem;
+  color: #1769e0;
+  font-size: .78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.qr-grid .qr-card-actions :is(a, button):hover,
+.qr-grid .qr-card-actions :is(a, button):focus-visible {
+  border-color: #1769e0;
+  background: #eaf2ff;
+}
+
+.qr-grid .qr-card-actions svg,
+.qr-print-all svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.qr-print-all {
+  display: flex;
+  margin: 1rem auto 0;
+}
+
+.qr-print-hint {
+  text-align: center;
+}

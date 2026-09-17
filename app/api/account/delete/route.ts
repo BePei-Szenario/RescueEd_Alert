@@ -1,6 +1,6 @@
 import {and,eq,inArray} from "drizzle-orm";
 import {getDb} from "@/db";
-import {auditLogs,deletedCustomerArchives,events,legalAcceptances,legalDocuments,organizations,securityTokens,sessions,users} from "@/db/schema";
+import {appSubscriptions,auditLogs,deletedCustomerArchives,events,legalAcceptances,legalAcknowledgements,legalDocuments,legalDocumentVersions,organizations,securityTokens,sessions,users} from "@/db/schema";
 import {legalDocumentDefaults,type LegalDocumentKey} from "@/lib/legal-documents";
 import {clearRateLimit,consumeRateLimit,rateLimited} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
@@ -22,9 +22,11 @@ export async function POST(request:Request){
   if(!await verifySecret(password,user.passwordHash))return Response.json({error:"Das eingegebene Passwort ist nicht korrekt."},{status:401});
   const [organization]=await db.select().from(organizations).where(eq(organizations.id,user.organizationId)).limit(1);
   if(!organization)return Response.json({error:"Organisation nicht gefunden."},{status:404});
-  const [acceptances,storedDocuments]=await Promise.all([
+  const [acceptances,acknowledgements,storedDocuments,versionDocuments]=await Promise.all([
    db.select().from(legalAcceptances).where(eq(legalAcceptances.userId,user.id)),
-   db.select().from(legalDocuments)
+   db.select().from(legalAcknowledgements).where(eq(legalAcknowledgements.userId,user.id)),
+   db.select().from(legalDocuments),
+   db.select().from(legalDocumentVersions)
   ]);
   const documents=(Object.keys(legalDocumentDefaults) as LegalDocumentKey[]).map(documentKey=>{
    const stored=storedDocuments.find(item=>item.documentKey===documentKey),fallback=legalDocumentDefaults[documentKey];
@@ -33,9 +35,10 @@ export async function POST(request:Request){
   const now=new Date(),retentionReviewAt=new Date(now);retentionReviewAt.setUTCFullYear(retentionReviewAt.getUTCFullYear()+3);
   const archiveId=id("arc"),anonymousEmail=`deleted-${crypto.randomUUID()}@invalid.local`;
   await db.batch([
-   db.insert(deletedCustomerArchives).values({id:archiveId,sourceUserId:user.id,sourceOrganizationId:organization.id,fullName:user.fullName,email:user.email,organizationName:organization.name,billingEmail:organization.billingEmail,billingStreet:organization.billingStreet,billingHouseNumber:organization.billingHouseNumber,billingPostalCode:organization.billingPostalCode,billingCity:organization.billingCity,legalSnapshotJson:JSON.stringify({acceptances:acceptances.map(item=>({termsVersion:item.termsVersion,privacyVersion:item.privacyVersion,avvVersion:item.avvVersion,acceptedAt:item.acceptedAt.toISOString()})),documents}),accountCreatedAt:user.createdAt,deletedAt:now,retentionReviewAt,createdAt:now}),
+   db.insert(deletedCustomerArchives).values({id:archiveId,sourceUserId:user.id,sourceOrganizationId:organization.id,fullName:user.fullName,email:user.email,organizationName:organization.name,billingEmail:organization.billingEmail,billingStreet:organization.billingStreet,billingHouseNumber:organization.billingHouseNumber,billingPostalCode:organization.billingPostalCode,billingCity:organization.billingCity,legalSnapshotJson:JSON.stringify({accountType:user.accountType,acceptances:acceptances.map(item=>({termsVersion:item.termsVersion,privacyVersion:item.privacyVersion,avvVersion:item.avvVersion,acceptedAt:item.acceptedAt.toISOString()})),acknowledgements:acknowledgements.map(item=>{const document=versionDocuments.find(version=>version.id===item.documentVersionId);return {documentKey:item.documentKey,version:item.documentVersion,contentHash:item.documentHash,acknowledgementType:item.acknowledgementType,acceptedAt:item.acceptedAt.toISOString(),title:document?.title||null,content:document?.content||null,publishedAt:document?.publishedAt.toISOString()||null}}),documents:acknowledgements.length?undefined:documents}),accountCreatedAt:user.createdAt,deletedAt:now,retentionReviewAt,createdAt:now}),
    db.delete(sessions).where(eq(sessions.userId,user.id)),
    db.delete(securityTokens).where(eq(securityTokens.userId,user.id)),
+   db.delete(appSubscriptions).where(eq(appSubscriptions.userId,user.id)),
    db.update(events).set({status:"cancelled",endedAt:now}).where(and(eq(events.ownerUserId,user.id),inArray(events.status,["draft","active"]))),
    db.update(users).set({fullName:"Gelöschter Kunde",email:anonymousEmail,passwordHash:await hashSecret(crypto.randomUUID()+crypto.randomUUID()),status:"deleted",mfaEnabled:false,emailVerifiedAt:null,lastLoginAt:null,deletedAt:now}).where(eq(users.id,user.id)),
    db.insert(auditLogs).values({id:id("aud"),actorUserId:user.id,action:"account.deleted_by_customer",entityType:"deleted_customer_archive",entityId:archiveId,metadataJson:JSON.stringify({organizationId:organization.id,legalAcceptanceCount:acceptances.length}),createdAt:now})

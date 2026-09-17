@@ -1,5 +1,7 @@
+import {effectiveEventEndDate} from "./event-duration";
+
 type EventSummary={
- event:{id:string;name:string;eventDate:string;startTime:string|null;endTime:string|null;helperLimit:number;priceCents:number;currency:string;status:string;createdAt:Date|string};
+ event:{id:string;name:string;eventDate:string;endDate?:string|null;startTime:string|null;endTime:string|null;helperLimit:number;priceCents:number;currency:string;status:string;createdAt:Date|string};
  invoice:{id:string;recipientName:string;street:string;postalCode:string;city:string;email:string;status:string}|null;
  helpers:Array<{firstName:string|null;lastName:string|null;name:string;qualification:string;registeredAt:Date|string;removedAt:Date|string|null;assignmentName:string|null}>;
  alarms?:Array<{createdAt:Date|string;assignmentNames:string[];message:string|null}>;
@@ -26,7 +28,7 @@ export function createEventSummaryPdf(input:EventSummary){
  newPage();
  page.push(text(`Erstellt am ${date(input.generatedAt||new Date())}`,MARGIN,y,9,false,MUTED));y-=36;
  section("Eventdetails");
- labelValue("Eventnummer",input.event.id);labelValue("Eventdatum",`${date(input.event.eventDate)} | ${input.event.startTime||"-"} bis ${input.event.endTime||"-"} Uhr`);labelValue("Bestellt am",date(input.event.createdAt));labelValue("Buchung",`Bis ${input.event.helperLimit} Helfer | ${(input.event.priceCents/100).toFixed(2)} ${input.event.currency}`);labelValue("Status bei Loeschung",input.event.status);
+ labelValue("Eventnummer",input.event.id);labelValue("Eventzeit",`${date(input.event.eventDate)} ${input.event.startTime||"-"} bis ${date(effectiveEventEndDate(input.event.eventDate,input.event.startTime,input.event.endDate,input.event.endTime))} ${input.event.endTime||"-"} Uhr`);labelValue("Bestellt am",date(input.event.createdAt));labelValue("Buchung",`Bis ${input.event.helperLimit} Helfer | ${(input.event.priceCents/100).toFixed(2)} ${input.event.currency}`);labelValue("Status bei Loeschung",input.event.status);
  section("Rechnungsdaten");
  if(input.invoice){labelValue("Empfaenger",input.invoice.recipientName);labelValue("Anschrift",`${input.invoice.street}, ${input.invoice.postalCode} ${input.invoice.city}`);labelValue("E-Mail",input.invoice.email);labelValue("Vorgang",`${input.invoice.id} | ${input.invoice.status}`)}else{page.push(text("Keine Rechnungsdaten vorhanden.",MARGIN,y,10));y-=28}
  section("Helferverlauf");

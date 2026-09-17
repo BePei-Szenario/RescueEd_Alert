@@ -52,8 +52,18 @@ export default defineConfig(async () => {
 
   return {
     server: {
-      ...(managedLinux ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] } : {}),
-      ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
+      // ADB reverse forwards the phone's 127.0.0.1 to the host's IPv4
+      // loopback. Windows otherwise resolves localhost to IPv6 only here.
+      ...(managedLinux ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] } : { host: "127.0.0.1" }),
+      // Flutter writes generated build reports inside this repository. They are
+      // unrelated to the web app and must not trigger a Vite page reload.
+      watch: {
+        ignored: ["**/mobile/build/**"],
+        ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}),
+      },
+      // Vite's console forwarder can recurse while its HMR socket is not yet
+      // connected, flooding the browser with unhandled promise rejections.
+      ...(!managedLinux ? { forwardConsole: false } : {}),
     },
     plugins: [
       vinext(),

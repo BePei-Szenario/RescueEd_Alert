@@ -14,7 +14,7 @@ export async function POST(request:Request){
   const db=getDb(),challengeHash=await tokenHash(challenge),now=new Date(),[token]=await db.select().from(securityTokens).where(and(eq(securityTokens.challengeHash,challengeHash),eq(securityTokens.purpose,"mfa"),isNull(securityTokens.usedAt))).limit(1);
   if(!token||token.expiresAt<=now||token.attempts>=5)return Response.json({error:"Sicherheitscode ungültig oder abgelaufen."},{status:401});
   const [user]=await db.select().from(users).where(eq(users.id,token.userId)).limit(1);
-  if(!user||user.status!=="active"||(token.challengeArea==="unternehmer"&&user.role!=="platform_owner"))return Response.json({error:"Nicht autorisiert."},{status:401});
+  if(!user||user.status!=="active"||(token.challengeArea==="unternehmer"&&user.role!=="platform_owner")||(token.challengeArea==="mobile_consumer"&&user.accountType!=="consumer")||(token.challengeArea==="customer"&&user.accountType!=="organization"))return Response.json({error:"Nicht autorisiert."},{status:401});
   const codeHash=await tokenHash(code!);
   if(token.tokenHash!==codeHash){
    await db.update(securityTokens).set({attempts:sql`${securityTokens.attempts} + 1`}).where(and(eq(securityTokens.id,token.id),isNull(securityTokens.usedAt),lt(securityTokens.attempts,5)));
