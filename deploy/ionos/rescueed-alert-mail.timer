@@ -1,0 +1,10 @@
+[Unit]
+Description=RescueEd Alert Mailversand jede Minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=rescueed-alert-mail.service
+
+[Install]
+WantedBy=timers.target

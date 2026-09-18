@@ -113,6 +113,13 @@
       "when": 1789653786097,
       "tag": "0015_perfect_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1789723073828,
+      "tag": "0016_great_the_anarchist",
+      "breakpoints": true
     }
   ]
 }

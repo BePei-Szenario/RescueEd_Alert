@@ -6,7 +6,9 @@ import {tokenHash} from "@/lib/security";
 type Limit={scope:string;subject:string;limit:number;windowMs:number;blockMs?:number};
 
 export function requestNetwork(request:Request){
- return request.headers.get("cf-connecting-ip")?.trim()||"local-or-unknown";
+ // Caddy overwrites X-Real-IP with the direct peer address. Never trust a
+ // client-supplied Cloudflare/X-Forwarded-For header on the VPS.
+ return request.headers.get("x-real-ip")?.trim()||"local-or-unknown";
 }
 
 export async function consumeRateLimit({scope,subject,limit,windowMs,blockMs=windowMs}:Limit){

@@ -1,0 +1,14 @@
+alert-rescueed.de {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up -CF-Connecting-IP
+    }
+}
+
+www.alert-rescueed.de {
+    redir https://alert-rescueed.de{uri} permanent
+}

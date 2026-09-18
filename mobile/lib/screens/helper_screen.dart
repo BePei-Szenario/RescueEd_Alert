@@ -228,7 +228,7 @@ class _HelperScreenState extends State<HelperScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                MaterialPageRoute(builder: (_) => SettingsScreen(api:widget.api,eventId:widget.eventId,helperToken:widget.helperToken)),
               );
               tone = await store.readAlarmTone();
               await _startMonitor();

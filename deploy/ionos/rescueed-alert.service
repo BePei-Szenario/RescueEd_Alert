@@ -1,0 +1,26 @@
+[Unit]
+Description=RescueEd Alert SaaS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rescueed-alert
+Group=rescueed-alert
+WorkingDirectory=/opt/rescueed-alert/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/rescueed-alert/server.env
+ExecStartPre=/usr/bin/node scripts/vps-preflight.mjs
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/rescueed-alert
+UMask=0077
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

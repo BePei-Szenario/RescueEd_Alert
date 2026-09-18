@@ -57,7 +57,7 @@ class HomeScreen extends StatelessWidget {
           style: TextButton.styleFrom(foregroundColor: Colors.white),
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            MaterialPageRoute(builder: (_) => SettingsScreen(api:api)),
           ),
           icon: const Icon(Icons.settings_outlined),
           label: const Text('Einstellungen'),

@@ -1,6 +1,6 @@
 import {and,eq,inArray} from "drizzle-orm";
 import {getDb} from "@/db";
-import {appSubscriptions,auditLogs,deletedCustomerArchives,events,legalAcceptances,legalAcknowledgements,legalDocuments,legalDocumentVersions,organizations,securityTokens,sessions,users} from "@/db/schema";
+import {appSubscriptions,auditLogs,deletedCustomerArchives,events,legalAcceptances,legalAcknowledgements,legalDocuments,legalDocumentVersions,organizations,securityTokens,sessions,supportTickets,users} from "@/db/schema";
 import {legalDocumentDefaults,type LegalDocumentKey} from "@/lib/legal-documents";
 import {clearRateLimit,consumeRateLimit,rateLimited} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
@@ -39,6 +39,7 @@ export async function POST(request:Request){
    db.delete(sessions).where(eq(sessions.userId,user.id)),
    db.delete(securityTokens).where(eq(securityTokens.userId,user.id)),
    db.delete(appSubscriptions).where(eq(appSubscriptions.userId,user.id)),
+   db.delete(supportTickets).where(eq(supportTickets.requesterUserId,user.id)),
    db.update(events).set({status:"cancelled",endedAt:now}).where(and(eq(events.ownerUserId,user.id),inArray(events.status,["draft","active"]))),
    db.update(users).set({fullName:"Gelöschter Kunde",email:anonymousEmail,passwordHash:await hashSecret(crypto.randomUUID()+crypto.randomUUID()),status:"deleted",mfaEnabled:false,emailVerifiedAt:null,lastLoginAt:null,deletedAt:now}).where(eq(users.id,user.id)),
    db.insert(auditLogs).values({id:id("aud"),actorUserId:user.id,action:"account.deleted_by_customer",entityType:"deleted_customer_archive",entityId:archiveId,metadataJson:JSON.stringify({organizationId:organization.id,legalAcceptanceCount:acceptances.length}),createdAt:now})

@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import "./welcome.css";
+import "./support-link.css";
 import {NewWelcome} from "./flows";
 import {ConnectedCreateEvent as CreateEvent,ConnectedEvents as Events} from "./connected-events";
 import {ConnectedDashboard} from "./connected-dashboard";
@@ -17,7 +18,7 @@ export default function Home(){
  if(screen==="welcome")return <NewWelcome login={()=>setScreen("login")} register={()=>setScreen("register")}/>;
  if(screen==="login")return <ConnectedLogin back={()=>setScreen("welcome")} submit={()=>setScreen("events")} register={()=>setScreen("register")}/>;
  if(screen==="register")return <ConnectedRegister back={()=>setScreen("login")} submit={()=>setScreen("events")}/>;
- if(screen==="events")return <Events open={id=>{setEventId(id);setScreen("dashboard")}} create={()=>setScreen("create")} logout={logout}/>;
+ if(screen==="events")return <><Events open={id=>{setEventId(id);setScreen("dashboard")}} create={()=>setScreen("create")} logout={logout}/><a className="support-entry" href="/support">Support & Tickets</a></>;
  if(screen==="create")return <CreateEvent back={()=>setScreen("events")} done={()=>setScreen("events")}/>;
  if(screen==="dashboard"&&eventId)return <ConnectedDashboard eventId={eventId} home={()=>setScreen("events")} logout={logout}/>;
  return null;

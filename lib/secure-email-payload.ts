@@ -1,4 +1,3 @@
-import {env} from "cloudflare:workers";
 
 type SensitiveMailType="mfa"|"registration_link"|"password_reset";
 
@@ -11,7 +10,7 @@ function decodeKey(value:string){
 function isLoopback(request:Request){const host=new URL(request.url).hostname.toLowerCase();return host==="localhost"||host==="127.0.0.1"||host==="[::1]"}
 
 export async function sensitiveEmailPayload(request:Request,rowId:string,type:SensitiveMailType,payload:string){
- const configured=env.EMAIL_PAYLOAD_KEY?.trim();
+ const configured=process.env.EMAIL_PAYLOAD_KEY?.trim();
  if(!configured){
   if(isLoopback(request))return payload;
   throw new Error("EMAIL_PAYLOAD_KEY fehlt für einen sicherheitsrelevanten E-Mail-Auftrag.");

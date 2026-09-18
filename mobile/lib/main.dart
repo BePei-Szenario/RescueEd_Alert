@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
 import 'alarm_monitor.dart';
 import 'notifications.dart';
 import 'session_store.dart';
+import 'crash_reporting.dart';
 import 'screens/helper_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -11,8 +13,11 @@ import 'screens/qr_flow.dart';
 import 'screens/consumer_register_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const RescueEdApp());
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await CrashReporting.initialize();
+    runApp(const RescueEdApp());
+  }, (error, stack) => unawaited(CrashReporting.report(error, stack, 'zone')));
 }
 
 class RescueEdApp extends StatefulWidget {

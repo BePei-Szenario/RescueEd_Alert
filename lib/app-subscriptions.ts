@@ -1,8 +1,9 @@
-import {env} from "cloudflare:workers";
 import {and,eq} from "drizzle-orm";
 import {getDb} from "@/db";
 import {appSubscriptions} from "@/db/schema";
 import {id,tokenHash} from "@/lib/security";
+
+const env=process.env;
 
 export type StoreName="google"|"apple";
 type SubscriptionStatus="active"|"grace"|"expired"|"pending"|"revoked";

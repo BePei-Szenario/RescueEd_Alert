@@ -15,12 +15,14 @@ Gemeinsame Flutter-App für Android und iOS. Die App verwendet ausschließlich d
 - vollständige Entfernung des temporären Zugangs nach erfolgreichem Auschecken
 - separates Privatkonto mit versionierten Rechtstexten und E-Mail-Sicherheitscode
 - privates Monatsabo über Google Play / App Store; neue Events nur nach serverseitig bestätigtem Abo
+- Support-Tickets für angemeldete Konten und aktive Helferzugänge unter Einstellungen
+- reduzierte Crashberichte in Release-Builds an die SaaS (ohne Fehlermeldung oder Authentifizierungsdaten)
 
 Die Einrichtung der Store-Produkte und Server-Bindings steht in [docs/B2C-STORE-SETUP.md](../docs/B2C-STORE-SETUP.md). Ohne Store-Produkte ist der Kaufpfad gesperrt.
 
 ## Android lokal testen
 
-Die SaaS muss auf dem Entwicklungsrechner unter Port 5173 laufen. Der Android-Emulator erreicht den Rechner über `10.0.2.2`:
+Für den lokalen Test muss die native Next.js-SaaS auf dem Entwicklungsrechner unter Port 5173 laufen. `DATABASE_PATH` muss dabei auf eine migrierte lokale SQLite-Datei zeigen. Der Android-Emulator erreicht den Rechner über `10.0.2.2`:
 
 ```powershell
 flutter run --dart-define=RESCUEED_API_URL=http://10.0.2.2:5173
@@ -30,11 +32,10 @@ Die bereits erzeugte Debug-APK liegt unter `build/app/outputs/flutter-apk/app-de
 
 Für ein echtes Android-Gerät muss statt `10.0.2.2` eine vom Gerät erreichbare HTTPS-Adresse oder vorübergehend die LAN-Adresse des Entwicklungsrechners verwendet werden.
 
-Bei einem per WLAN-ADB verbundenen Gerät kann die App ohne offenen LAN-Port über einen Reverse-Tunnel getestet werden. Falls der lokale vinext-Server nur auf IPv6 lauscht, zuerst den mitgelieferten Adapter starten:
+Bei einem per WLAN-ADB verbundenen Gerät kann die App ohne offenen LAN-Port über einen Reverse-Tunnel getestet werden:
 
 ```powershell
-npm run dev:mobile-proxy
-adb reverse tcp:5173 tcp:5174
+adb reverse tcp:5173 tcp:5173
 flutter run -d <GERAETE-ID> --dart-define=RESCUEED_API_URL=http://127.0.0.1:5173
 ```
 
@@ -44,7 +45,9 @@ flutter run -d <GERAETE-ID> --dart-define=RESCUEED_API_URL=http://127.0.0.1:5173
 flutter build appbundle --release --dart-define=RESCUEED_API_URL=https://alert-rescueed.de
 ```
 
-Vor Veröffentlichung muss in `android/app/build.gradle.kts` die Release-Signierung mit dem eigenen, sicher verwahrten Upload-Key konfiguriert werden. Es dürfen keine Schlüssel in Git abgelegt werden.
+Vor Veröffentlichung muss `android/key.properties` mit dem eigenen, sicher verwahrten Upload-Key konfiguriert werden. Ohne diese Datei wird ein Release **nicht** mit dem Debug-Schlüssel signiert. Weder `key.properties` noch Keystore-Dateien gehören in Git.
+
+Der Produktionsendpunkt ist die HTTPS-Adresse `https://alert-rescueed.de` am IONOS-VPS. Keine direkte Server-IP und kein HTTP in einem Release-Build verwenden. DNS und TLS müssen vor dem End-to-End-Test aktiv sein.
 
 ## iOS auf dem Mac
 

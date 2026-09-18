@@ -1,0 +1,17 @@
+[Unit]
+Description=RescueEd Alert Diagnose-Aufbewahrung
+
+[Service]
+Type=oneshot
+User=rescueed-alert
+Group=rescueed-alert
+WorkingDirectory=/opt/rescueed-alert/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/rescueed-alert/server.env
+ExecStart=/usr/bin/node scripts/purge-diagnostics.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/rescueed-alert
+UMask=0077

@@ -1,0 +1,19 @@
+# Vorlage für /etc/rescueed-alert/msmtprc; nur auf dem Server mit chmod 0600 befüllen.
+defaults
+auth on
+tls on
+tls_starttls on
+tls_certcheck on
+port 587
+
+account mfa
+host SMTP_HOST_DES_POSTFACHANBIETERS
+from noreply_ra@rescueed.de
+user noreply_ra@rescueed.de
+password PASSWORT_NUR_AUF_DEM_SERVER
+
+account kontakt
+host SMTP_HOST_DES_POSTFACHANBIETERS
+from info_ra@rescueed.de
+user info_ra@rescueed.de
+password PASSWORT_NUR_AUF_DEM_SERVER

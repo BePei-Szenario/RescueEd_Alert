@@ -1,16 +1,21 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "rescueed-alert",
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "install:ci": "node scripts/install-ci.mjs",
-    "dev": "node scripts/run-framework.mjs dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 5173",
     "dev:mobile-proxy": "node scripts/mobile-dev-proxy.mjs",
-    "build": "node scripts/run-framework.mjs build",
-    "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "db:migrate": "node scripts/migrate-sqlite.mjs",
+    "db:bootstrap-owner": "node scripts/bootstrap-owner.mjs",
+    "mail:send": "node scripts/send-outbox.mjs",
+    "maintenance:diagnostics": "node scripts/purge-diagnostics.mjs",
+    "preflight:vps": "node scripts/vps-preflight.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "smoke:unternehmer": "node scripts/smoke-unternehmer.mjs"

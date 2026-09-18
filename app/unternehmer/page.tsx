@@ -11,6 +11,7 @@ import "./dashboard.css";
 import "./billing-settings.css";
 import "./legal-settings.css";
 import "./customer-archive.css";
+import "./support-panel.css";
 export const dynamic="force-dynamic";
 
 export default async function UnternehmerPage(){
@@ -31,7 +32,7 @@ export default async function UnternehmerPage(){
  ]);
  const consumerIds=customers.filter(customer=>customer.accountType==="consumer").map(customer=>customer.id);
  const subscriptions=consumerIds.length?await db.select({userId:appSubscriptions.userId,store:appSubscriptions.store,status:appSubscriptions.status,expiresAt:appSubscriptions.expiresAt,lastVerifiedAt:appSubscriptions.lastVerifiedAt}).from(appSubscriptions).where(inArray(appSubscriptions.userId,consumerIds)).orderBy(desc(appSubscriptions.lastVerifiedAt)):[];
- const defaults={mfa:"noreply@rescueed.de",registration_link:"noreply@rescueed.de",password_reset:"noreply@rescueed.de",customer_contact:"kontakt@rescueed.de"};
+ const defaults={mfa:process.env.MAIL_FROM_MFA||"noreply_ra@rescueed.de",registration_link:process.env.MAIL_FROM_MFA||"noreply_ra@rescueed.de",password_reset:process.env.MAIL_FROM_MFA||"noreply_ra@rescueed.de",customer_contact:process.env.MAIL_FROM_CONTACT||"info_ra@rescueed.de"};
  const settings=Object.fromEntries(Object.entries(defaults).map(([action,email])=>[action,emailSettings.find(x=>x.action===action)?.senderEmail||email]));
  const documents=(Object.keys(legalDocumentDefaults) as LegalDocumentKey[]).map(documentKey=>{const stored=storedLegalDocuments.find(item=>item.documentKey===documentKey),fallback=legalDocumentDefaults[documentKey];return {documentKey,title:stored?.title||fallback.title,version:stored?.version||fallback.version,content:stored?.content||fallback.content,status:stored?.status||"draft" as const}});
  const archivedCustomers=archives.map(item=>{

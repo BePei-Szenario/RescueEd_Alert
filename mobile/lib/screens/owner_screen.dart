@@ -106,7 +106,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
           tooltip: 'Einstellungen',
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            MaterialPageRoute(builder: (_) => SettingsScreen(api:widget.api)),
           ),
           icon: const Icon(Icons.settings_outlined),
         ),
@@ -548,7 +548,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
             tooltip: 'Einstellungen',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              MaterialPageRoute(builder: (_) => SettingsScreen(api:widget.api)),
             ),
             icon: const Icon(Icons.settings_outlined),
           ),

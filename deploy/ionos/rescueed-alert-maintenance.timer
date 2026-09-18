@@ -1,0 +1,10 @@
+[Unit]
+Description=RescueEd Alert tägliche Diagnose-Bereinigung
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=rescueed-alert-maintenance.service
+
+[Install]
+WantedBy=timers.target
