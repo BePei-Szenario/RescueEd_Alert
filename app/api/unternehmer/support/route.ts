@@ -1,11 +1,11 @@
 import {desc,eq} from "drizzle-orm";
 import {getDb} from "@/db";
 import {appCrashReports,supportTickets,users} from "@/db/schema";
-import {requirePlatformOwnerApi} from "@/lib/session";
+import {requirePlatformStaffApi} from "@/lib/session";
 
 export async function GET(){
  try{
-  const auth=await requirePlatformOwnerApi();if(auth.response)return auth.response;
+  const auth=await requirePlatformStaffApi();if(auth.response)return auth.response;
   const db=getDb();
   const [tickets,crashes]=await Promise.all([
    db.select({id:supportTickets.id,subject:supportTickets.subject,status:supportTickets.status,requesterType:supportTickets.requesterType,requesterName:users.fullName,requesterEmail:users.email,eventId:supportTickets.eventId,createdAt:supportTickets.createdAt,updatedAt:supportTickets.updatedAt}).from(supportTickets).leftJoin(users,eq(supportTickets.requesterUserId,users.id)).orderBy(desc(supportTickets.updatedAt)).limit(100),

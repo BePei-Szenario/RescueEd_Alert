@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `uidx_organization_one_member` ON `users` (`organization_id`) WHERE role = 'organization_member' AND status != 'deleted';

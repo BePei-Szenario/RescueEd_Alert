@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../widgets/password_field.dart';
 
 class ConsumerRegisterScreen extends StatefulWidget {
   const ConsumerRegisterScreen({super.key, required this.api, required this.onBack, required this.onDone});
@@ -64,7 +65,7 @@ class _ConsumerRegisterScreenState extends State<ConsumerRegisterScreen> {
       if(!codeSent)...[
         TextField(controller:name,decoration:const InputDecoration(labelText:'Vor- und Nachname'),textCapitalization:TextCapitalization.words),const SizedBox(height:12),
         TextField(controller:email,decoration:const InputDecoration(labelText:'E-Mail-Adresse'),keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email]),const SizedBox(height:12),
-        TextField(controller:password,decoration:const InputDecoration(labelText:'Passwort (mindestens 12 Zeichen)'),obscureText:true,autofillHints:const [AutofillHints.newPassword]),const SizedBox(height:20),
+        PasswordField(controller:password,labelText:'Passwort (mindestens 12 Zeichen)',autofillHints:const [AutofillHints.newPassword]),const SizedBox(height:20),
         ...documents.map((document){
           final key=document['documentKey'] as String,id=document['id'] as String;
           final label=key=='agb_b2c'?'AGB akzeptieren':key=='datenschutz'?'Datenschutzerklärung gelesen':'Widerrufsbelehrung gelesen';

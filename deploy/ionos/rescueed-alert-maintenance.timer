@@ -1,8 +1,8 @@
 [Unit]
-Description=RescueEd Alert tägliche Diagnose-Bereinigung
+Description=RescueEd Alert stündliche Löschfristen-Prüfung
 
 [Timer]
-OnCalendar=daily
+OnCalendar=hourly
 Persistent=true
 Unit=rescueed-alert-maintenance.service
 

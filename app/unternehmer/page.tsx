@@ -1,10 +1,11 @@
-import {and,count,desc,eq,inArray,ne} from "drizzle-orm";
+import {and,count,desc,eq,inArray,isNull,ne} from "drizzle-orm";
 import {redirect} from "next/navigation";
 import {getDb} from "@/db";
-import {appSubscriptions,auditLogs,deletedCustomerArchives,emailSenderSettings,events,invoiceRequests,legalDocuments,legalDocumentVersions,organizations,users} from "@/db/schema";
+import {appSubscriptions,auditLogs,billingRecords,deletedCustomerArchives,emailSenderSettings,events,legalDocuments,legalDocumentVersions,organizations,retentionHolds,users} from "@/db/schema";
 import {legalDocumentDefaults,type LegalDocumentKey} from "@/lib/legal-documents";
-import {platformOwner} from "@/lib/session";
+import {platformStaff} from "@/lib/session";
 import {OwnerDashboard} from "./dashboard-client";
+import {StaffDashboard} from "./staff-dashboard";
 import "./unternehmer.css";
 import "./owner-enhancements.css";
 import "./dashboard.css";
@@ -12,25 +13,37 @@ import "./billing-settings.css";
 import "./legal-settings.css";
 import "./customer-archive.css";
 import "./support-panel.css";
+import "./staff-management.css";
+import "./archive-nav.css";
 export const dynamic="force-dynamic";
 
 export default async function UnternehmerPage(){
- const operator=await platformOwner();if(!operator)redirect("/unternehmer/login");
+ const operator=await platformStaff();if(!operator)redirect("/unternehmer/login");
  const db=getDb();
+ if(operator.role==="platform_staff"){
+  const [staffCustomers,staffBookings]=await Promise.all([
+   db.select({id:users.id,name:users.fullName,email:users.email,status:users.status,accountType:users.accountType,organization:organizations.name}).from(users).innerJoin(organizations,eq(users.organizationId,organizations.id)).where(and(eq(users.role,"customer"),ne(users.status,"deleted"))).orderBy(desc(users.createdAt)).limit(50),
+   db.select({id:billingRecords.id,customer:billingRecords.customerName,organization:billingRecords.organizationName,email:billingRecords.email,amount:billingRecords.amountCents,createdAt:billingRecords.createdAt}).from(billingRecords).orderBy(desc(billingRecords.createdAt)).limit(500)
+  ]);
+  return <StaffDashboard operator={{name:operator.fullName,email:operator.email}} customers={staffCustomers} bookings={staffBookings.map(item=>({...item,createdAt:item.createdAt.toISOString()}))}/>;
+ }
  const [[orgCount],[userCount],[eventCount],[bookingCount],customers,archives,bookings,emailSettings,storedLegalDocuments,legalVersions,logs]=await Promise.all([
   db.select({value:count()}).from(organizations),
   db.select({value:count()}).from(users).where(and(eq(users.role,"customer"),ne(users.status,"deleted"))),
   db.select({value:count()}).from(events),
-  db.select({value:count()}).from(invoiceRequests),
-  db.select({id:users.id,name:users.fullName,email:users.email,status:users.status,accountType:users.accountType,createdAt:users.createdAt,organization:organizations.name,complimentaryAccess:organizations.complimentaryAccess,unlimitedEventDuration:organizations.unlimitedEventDuration}).from(users).innerJoin(organizations,eq(users.organizationId,organizations.id)).where(and(eq(users.role,"customer"),ne(users.status,"deleted"))).orderBy(desc(users.createdAt)).limit(50),
+  db.select({value:count()}).from(billingRecords),
+  db.select({id:users.id,name:users.fullName,email:users.email,status:users.status,accountType:users.accountType,createdAt:users.createdAt,organization:organizations.name,organizationType:organizations.organizationType,complimentaryAccess:organizations.complimentaryAccess,unlimitedEventDuration:organizations.unlimitedEventDuration}).from(users).innerJoin(organizations,eq(users.organizationId,organizations.id)).where(and(eq(users.role,"customer"),ne(users.status,"deleted"))).orderBy(desc(users.createdAt)).limit(50),
   db.select().from(deletedCustomerArchives).orderBy(desc(deletedCustomerArchives.deletedAt)).limit(100),
-  db.select({id:invoiceRequests.id,customer:users.fullName,organization:organizations.name,email:invoiceRequests.email,helperLimit:events.helperLimit,amount:invoiceRequests.amountCents,currency:events.currency,createdAt:invoiceRequests.createdAt}).from(invoiceRequests).innerJoin(events,eq(invoiceRequests.eventId,events.id)).innerJoin(users,eq(events.ownerUserId,users.id)).innerJoin(organizations,eq(events.organizationId,organizations.id)).orderBy(desc(invoiceRequests.createdAt)).limit(500),
+  db.select({id:billingRecords.id,customer:billingRecords.customerName,organization:billingRecords.organizationName,email:billingRecords.email,helperLimit:billingRecords.helperLimit,amount:billingRecords.amountCents,currency:billingRecords.currency,createdAt:billingRecords.createdAt}).from(billingRecords).orderBy(desc(billingRecords.createdAt)).limit(500),
   db.select().from(emailSenderSettings),
   db.select().from(legalDocuments),
   db.select().from(legalDocumentVersions).orderBy(desc(legalDocumentVersions.publishedAt)),
   db.select({id:auditLogs.id,action:auditLogs.action,entityType:auditLogs.entityType,createdAt:auditLogs.createdAt}).from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(30)
  ]);
  const consumerIds=customers.filter(customer=>customer.accountType==="consumer").map(customer=>customer.id);
+ const staffAccounts=operator.role==="platform_owner"?await db.select({id:users.id,name:users.fullName,email:users.email,status:users.status,createdAt:users.createdAt,emailVerifiedAt:users.emailVerifiedAt}).from(users).where(eq(users.role,"platform_staff")).orderBy(desc(users.createdAt)):[];
+ if(operator.role!=="platform_owner")redirect("/unternehmer/login");
+ const archiveHolds=archives.length?await db.select({entityId:retentionHolds.entityId}).from(retentionHolds).where(and(eq(retentionHolds.entityType,"contract_evidence"),isNull(retentionHolds.releasedAt),inArray(retentionHolds.entityId,archives.map(item=>item.id)))):[];
  const subscriptions=consumerIds.length?await db.select({userId:appSubscriptions.userId,store:appSubscriptions.store,status:appSubscriptions.status,expiresAt:appSubscriptions.expiresAt,lastVerifiedAt:appSubscriptions.lastVerifiedAt}).from(appSubscriptions).where(inArray(appSubscriptions.userId,consumerIds)).orderBy(desc(appSubscriptions.lastVerifiedAt)):[];
  const defaults={mfa:process.env.MAIL_FROM_MFA||"noreply_ra@rescueed.de",registration_link:process.env.MAIL_FROM_MFA||"noreply_ra@rescueed.de",password_reset:process.env.MAIL_FROM_MFA||"noreply_ra@rescueed.de",customer_contact:process.env.MAIL_FROM_CONTACT||"info_ra@rescueed.de"};
  const settings=Object.fromEntries(Object.entries(defaults).map(([action,email])=>[action,emailSettings.find(x=>x.action===action)?.senderEmail||email]));
@@ -43,7 +56,7 @@ export default async function UnternehmerPage(){
    if(snapshot.acknowledgements?.length){legalEvidence=snapshot.acknowledgements;legalVersions=legalEvidence.map(entry=>`${entry.documentKey.toUpperCase()} ${entry.version}`).join(" · ")}
    else{const acceptance=snapshot.acceptances?.at(-1);if(acceptance)legalVersions=`AGB ${acceptance.termsVersion} · Datenschutz ${acceptance.privacyVersion} · AVV ${acceptance.avvVersion}`}
   }catch{}
-  return {id:item.id,name:item.fullName,email:item.email,organization:item.organizationName,deletedAt:item.deletedAt.toISOString(),retentionReviewAt:item.retentionReviewAt.toISOString(),legalVersions,legalEvidence};
+  return {id:item.id,name:item.fullName,email:item.email,organization:item.organizationName,deletedAt:item.deletedAt.toISOString(),retentionReviewAt:item.retentionReviewAt.toISOString(),retentionHeld:archiveHolds.some(hold=>hold.entityId===item.id),legalVersions,legalEvidence};
  });
- return <OwnerDashboard operator={{name:operator.fullName,email:operator.email}} counts={{organizations:orgCount?.value??0,customers:userCount?.value??0,events:eventCount?.value??0,bookings:bookingCount?.value??0}} customers={customers.map(x=>{const subscription=subscriptions.find(item=>item.userId===x.id);return {...x,createdAt:x.createdAt.toISOString(),subscription:subscription?{store:subscription.store,status:subscription.status,expiresAt:subscription.expiresAt?.toISOString()||null,lastVerifiedAt:subscription.lastVerifiedAt?.toISOString()||null}:null}})} archivedCustomers={archivedCustomers} bookings={bookings.map(x=>({...x,createdAt:x.createdAt.toISOString()}))} emailSettings={settings} legalDocuments={documents} legalVersions={legalVersions.map(x=>({documentKey:x.documentKey,title:x.title,version:x.version,content:x.content,contentHash:x.contentHash,publishedAt:x.publishedAt.toISOString(),archivedAt:x.archivedAt?.toISOString()||null}))} logs={logs.map(x=>({...x,createdAt:x.createdAt.toISOString()}))}/>;
+ return <OwnerDashboard operator={{name:operator.fullName,email:operator.email,role:operator.role}} staffAccounts={staffAccounts.map(item=>({...item,createdAt:item.createdAt.toISOString(),emailVerifiedAt:item.emailVerifiedAt?.toISOString()??null}))} counts={{organizations:orgCount?.value??0,customers:userCount?.value??0,events:eventCount?.value??0,bookings:bookingCount?.value??0}} customers={customers.map(x=>{const subscription=subscriptions.find(item=>item.userId===x.id);return {...x,createdAt:x.createdAt.toISOString(),subscription:subscription?{store:subscription.store,status:subscription.status,expiresAt:subscription.expiresAt?.toISOString()||null,lastVerifiedAt:subscription.lastVerifiedAt?.toISOString()||null}:null}})} archivedCustomers={operator.role==="platform_owner"?archivedCustomers:[]} bookings={bookings.map(x=>({...x,createdAt:x.createdAt.toISOString()}))} emailSettings={operator.role==="platform_owner"?settings:{}} legalDocuments={operator.role==="platform_owner"?documents:[]} legalVersions={(operator.role==="platform_owner"?legalVersions:[]).map(x=>({documentKey:x.documentKey,title:x.title,version:x.version,content:x.content,contentHash:x.contentHash,publishedAt:x.publishedAt.toISOString(),archivedAt:x.archivedAt?.toISOString()||null}))} logs={(operator.role==="platform_owner"?logs:[]).map(x=>({...x,createdAt:x.createdAt.toISOString()}))}/>;
 }

@@ -115,9 +115,6 @@ class _HelperScreenState extends State<HelperScreen> {
     if (!backgroundMonitorReady) {
       await widget.notifications.showAlarm(
         alertId: alert['id'] as String,
-        eventName: event['name'],
-        unitName: assignment?['name'] ?? 'Sanitätsmittel',
-        message: alert['message'] as String?,
         tone: tone,
       );
     }

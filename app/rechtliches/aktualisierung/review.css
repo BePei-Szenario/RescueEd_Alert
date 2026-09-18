@@ -1,0 +1,13 @@
+.legal-update-page{min-height:100vh;background:#f3f7fd;color:#10243f;font-family:inherit}
+.legal-update-page>header{display:flex;align-items:center;gap:12px;background:#10243f;color:white;padding:14px max(20px,calc((100vw - 1050px)/2))}
+.legal-update-page>header a{margin-left:auto;color:white;text-decoration:none;font-size:14px}
+.legal-update-card{max-width:760px;margin:42px auto;padding:30px;background:white;border:1px solid #d5e1f2;border-radius:16px;box-shadow:0 8px 28px #10243f0d}
+.legal-update-kicker{color:#1765d8;font-size:12px;font-weight:800;letter-spacing:.12em}
+.legal-update-card h1{font-size:30px;margin:8px 0}.legal-update-card>p{line-height:1.55}
+.legal-update-documents{display:grid;gap:14px;margin:24px 0}.legal-update-documents article{border:1px solid #d5e1f2;border-radius:12px;padding:16px}
+.legal-update-documents summary{cursor:pointer;font-weight:700}.legal-update-content{max-height:300px;overflow:auto;white-space:pre-wrap;line-height:1.55;padding:16px;margin:12px 0;background:#f6f9ff;border-radius:8px}
+.legal-update-documents label{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px}.legal-update-documents input{margin-top:3px}
+.legal-update-card button{background:#1765d8;border:0;border-radius:8px;color:white;padding:12px 18px;font-weight:700;cursor:pointer}.legal-update-card button:disabled{opacity:.5;cursor:not-allowed}
+.legal-update-back{display:inline-block;margin-left:18px;color:#1765d8;text-decoration:none;font-size:14px}.legal-update-error{color:#b42318}
+.portal-legal-update{display:flex;align-items:center;justify-content:space-between;gap:20px;background:#fff8e8;border:1px solid #e5c575;border-radius:12px;padding:16px 20px;margin:18px 0}.portal-legal-update b{color:#714b00}.portal-legal-update p{margin:4px 0 0;color:#5f4a22;font-size:14px}.portal-legal-update a{flex:none;color:#0b58c5;font-weight:700}
+@media(max-width:650px){.legal-update-card{margin:18px 12px;padding:20px}.portal-legal-update{display:block}.portal-legal-update a{display:inline-block;margin-top:12px}.legal-update-back{display:block;margin:16px 0 0}}

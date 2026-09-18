@@ -120,6 +120,48 @@
       "when": 1789723073828,
       "tag": "0016_great_the_anarchist",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1789736658576,
+      "tag": "0017_naive_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1789736745489,
+      "tag": "0018_salty_omega_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1789737306089,
+      "tag": "0019_lush_doctor_faustus",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1789737726099,
+      "tag": "0020_next_speed",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1789745220209,
+      "tag": "0021_yielding_nocturne",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1789749076132,
+      "tag": "0022_daily_blue_shield",
+      "breakpoints": true
     }
   ]
 }

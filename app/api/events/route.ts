@@ -1,20 +1,24 @@
 import {and,desc,eq,inArray,isNotNull,or} from "drizzle-orm";
 import {getDb} from "@/db";
-import {emailOutbox,eventAdministrators,events,invoiceRequests,organizations} from "@/db/schema";
+import {billingRecords,emailOutbox,eventAdministrators,events,invoiceRequests,organizations} from "@/db/schema";
 import {emailPayload} from "@/lib/email-signature";
 import {eventDurationMinutes,STANDARD_EVENT_MAX_MINUTES} from "@/lib/event-duration";
 import {senderFor} from "@/lib/email-settings";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {id,tokenHash} from "@/lib/security";
+import {calendarYearRetentionEnd} from "@/lib/retention";
 import {currentUser} from "@/lib/session";
+import {legalReconfirmation} from "@/lib/legal-reconfirmation";
 import {consumerEntitlement} from "@/lib/app-subscriptions";
 
-export async function GET(){try{const owner=await currentUser();if(!owner)return Response.json({error:"Bitte zuerst anmelden."},{status:401});const db=getDb(),memberships=await db.select({eventId:eventAdministrators.eventId}).from(eventAdministrators).where(and(eq(eventAdministrators.userId,owner.id),eq(eventAdministrators.role,"owner"),isNotNull(eventAdministrators.acceptedAt))),memberIds=memberships.map(row=>row.eventId);const access=memberIds.length?or(eq(events.ownerUserId,owner.id),inArray(events.id,memberIds)):eq(events.ownerUserId,owner.id);const rows=await db.select({id:events.id,name:events.name,eventDate:events.eventDate,helperLimit:events.helperLimit,priceCents:events.priceCents,status:events.status}).from(events).where(and(eq(events.organizationId,owner.organizationId),access)).orderBy(desc(events.createdAt));return Response.json({events:rows})}catch(error){console.error("event_list_failed",error);return Response.json({error:"Events konnten nicht geladen werden."},{status:500})}}
+export async function GET(){try{const owner=await currentUser();if(!owner||owner.role==="platform_owner"||owner.role==="platform_staff")return Response.json({error:"Bitte zuerst anmelden."},{status:401});const db=getDb(),memberships=await db.select({eventId:eventAdministrators.eventId}).from(eventAdministrators).where(and(eq(eventAdministrators.userId,owner.id),eq(eventAdministrators.role,"owner"),isNotNull(eventAdministrators.acceptedAt))),memberIds=memberships.map(row=>row.eventId);const access=owner.accountType==="organization"?undefined:memberIds.length?or(eq(events.ownerUserId,owner.id),inArray(events.id,memberIds)):eq(events.ownerUserId,owner.id);const rows=await db.select({id:events.id,name:events.name,eventDate:events.eventDate,helperLimit:events.helperLimit,priceCents:events.priceCents,status:events.status}).from(events).where(access?and(eq(events.organizationId,owner.organizationId),access):eq(events.organizationId,owner.organizationId)).orderBy(desc(events.createdAt));return Response.json({events:rows})}catch(error){console.error("event_list_failed",error);return Response.json({error:"Events konnten nicht geladen werden."},{status:500})}}
 
 export async function POST(request:Request){
  try{
-  const bad=rejectCrossSiteMutation(request);if(bad)return bad;const owner=await currentUser();if(!owner)return Response.json({error:"Bitte zuerst anmelden."},{status:401});
+  const bad=rejectCrossSiteMutation(request);if(bad)return bad;const owner=await currentUser();if(!owner||owner.role==="platform_owner"||owner.role==="platform_staff")return Response.json({error:"Bitte zuerst anmelden."},{status:401});
+  const legalReview=await legalReconfirmation(owner);
+  if(legalReview.required)return Response.json({error:legalReview.available?"Bitte bestätigen Sie zuerst die aktuellen Rechtstexte. Laufende Events bleiben erreichbar.":"Die aktuellen Rechtstexte sind derzeit nicht verfügbar. Neue Events können nicht angelegt werden.",legalUpdateRequired:true},{status:legalReview.available?428:503,headers:{"cache-control":"no-store"}});
   if(owner.accountType==="consumer"){
    const entitlement=await consumerEntitlement(owner.id);
    if(!entitlement.active)return Response.json({error:entitlement.status==="unavailable"?"Der Abo-Status ist derzeit nicht prüfbar. Bitte später erneut versuchen.":"Für ein neues Event ist ein aktives App-Abo erforderlich.",subscriptionStatus:entitlement.status},{status:entitlement.status==="unavailable"?503:402,headers:{"cache-control":"no-store"}});
@@ -30,7 +34,7 @@ export async function POST(request:Request){
   if(durationMinutes===null)return Response.json({error:"Bitte Beginn und Ende mit gültigem Datum und Uhrzeit angeben."},{status:400});
   if(durationMinutes<=0)return Response.json({error:"Das Eventende muss nach dem Beginn liegen."},{status:400});
   if(owner.accountType!=="consumer"&&!/^\S+@\S+\.\S+$/.test(billingEmail))return Response.json({error:"Bitte eine gültige Rechnungs-E-Mail angeben."},{status:400});
-  const db=getDb(),[organization]=await db.select({billingEmail:organizations.billingEmail,complimentaryAccess:organizations.complimentaryAccess,unlimitedEventDuration:organizations.unlimitedEventDuration}).from(organizations).where(eq(organizations.id,owner.organizationId)).limit(1);
+  const db=getDb(),[organization]=await db.select({name:organizations.name,billingEmail:organizations.billingEmail,complimentaryAccess:organizations.complimentaryAccess,unlimitedEventDuration:organizations.unlimitedEventDuration}).from(organizations).where(eq(organizations.id,owner.organizationId)).limit(1);
   if(!organization)return Response.json({error:"Organisation nicht gefunden."},{status:404});
   if((owner.accountType==="consumer"||!organization.unlimitedEventDuration)&&durationMinutes>STANDARD_EVENT_MAX_MINUTES)return Response.json({error:"Events dürfen höchstens 48 Stunden dauern. Längere Events sind nur für Dauernutzer-Organisationen möglich."},{status:400});
   const verifiedBillingEmail=organization?.billingEmail?.trim().toLowerCase();
@@ -44,6 +48,7 @@ export async function POST(request:Request){
   await db.batch([
    db.insert(events).values({id:eventId,organizationId:owner.organizationId,ownerUserId:owner.id,name,eventDate,endDate,startTime,endTime,helperLimit:count,priceCents,publicJoinTokenHash:await tokenHash(joinToken),checkInCode,checkOutCode,createdAt:now,deleteHelpersAfter:new Date(now.getTime()+30*86400000)}),
    ...(invoiceId?[db.insert(invoiceRequests).values({id:invoiceId,eventId,recipientName,street,postalCode,city,email:billingEmail,amountCents:priceCents,createdAt:now})]:[]),
+   ...(invoiceId?[db.insert(billingRecords).values({id:invoiceId,customerName:owner.fullName,organizationName:organization.name,recipientName,street,postalCode,city,email:billingEmail,eventName:name,eventDate,helperLimit:count,amountCents:priceCents,currency:"EUR",createdAt:now,retainUntil:calendarYearRetentionEnd(now,8).getTime()})]:[]),
    db.insert(eventAdministrators).values({id:adminId,eventId,userId:owner.id,role:"owner",acceptedAt:now,createdAt:now}),
    db.insert(emailOutbox).values({id:mailId,userId:owner.id,type:"order_confirmation",senderEmail,recipientEmail:owner.email,subject:owner.accountType==="consumer"?`RescueEd Alert – Event im App-Abo ${name}`:complimentaryAccess?`RescueEd Alert – Kostenfreies Event ${name}`:`RescueEd Alert – Bestellbestätigung für ${name}`,payloadJson:emailPayload({template:"order_confirmation",orderReference:invoiceId||eventId,orderedAt:now.toISOString(),recipientName,billingAddress:{street,postalCode,city},event:{name,date:eventDate,endDate,startTime,endTime,period:eventPeriod,helperLimit:count},service:`RescueEd Alert Event-Paket für bis zu ${count} Helfer`,paymentMethod:owner.accountType==="consumer"?"App-Abo":complimentaryAccess?"Kostenfreie Nutzung":"Rechnung",billingTiming:complimentaryAccess?"Keine zusätzliche Eventabrechnung":"Abrechnung am Monatsende",pricing:{currency:"EUR",vatRatePercent:complimentaryAccess?0:19,netCents,vatCents,grossCents:priceCents},message:owner.accountType==="consumer"?"Das Event wurde im Rahmen Ihres aktiven App-Abonnements angelegt. Für dieses Event entsteht kein zusätzliches Entgelt.":complimentaryAccess?"Das Event wurde im Rahmen Ihrer freigeschalteten kostenlosen Nutzung angelegt. Es entsteht keine Rechnungsanforderung.":"Vielen Dank für Ihre Bestellung. Wir haben Ihre Bestellung erhalten und bearbeiten diese so schnell wie möglich. Diese E-Mail bestätigt den Eingang Ihrer kostenpflichtigen Bestellung. Die Abrechnung erfolgt am Monatsende per Rechnung."}),createdAt:now})
   ]);

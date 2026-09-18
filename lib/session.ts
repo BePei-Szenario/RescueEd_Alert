@@ -17,7 +17,17 @@ export async function platformOwner(){
  return user?.role==="platform_owner"?user:null;
 }
 
+export async function platformStaff(){
+ const user=await currentUser();
+ return user?.role==="platform_owner"||user?.role==="platform_staff"?user:null;
+}
+
 export async function requirePlatformOwnerApi(){
  const user=await platformOwner();
+ return user?{user,response:null}:{user:null,response:Response.json({error:"Nicht autorisiert."},{status:401})};
+}
+
+export async function requirePlatformStaffApi(){
+ const user=await platformStaff();
  return user?{user,response:null}:{user:null,response:Response.json({error:"Nicht autorisiert."},{status:401})};
 }

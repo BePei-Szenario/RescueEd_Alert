@@ -1,12 +1,67 @@
-import {DatabaseSync} from "node:sqlite";
+import { createHash, randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
-const file=process.env.DATABASE_PATH;
-if(!file||!path.isAbsolute(file))throw new Error("DATABASE_PATH muss absolut sein.");
-const db=new DatabaseSync(file);
-try{
- db.exec("PRAGMA busy_timeout=5000");
- const before=Date.now()-30*86400000;
- const result=db.prepare("DELETE FROM app_crash_reports WHERE created_at < ?").run(before);
- process.stdout.write(`${result.changes} abgelaufene App-Fehlerberichte entfernt.\n`);
-}finally{db.close()}
+const file = process.env.DATABASE_PATH;
+if (!file || !path.isAbsolute(file)) throw new Error("DATABASE_PATH muss absolut sein.");
+const db = new DatabaseSync(file);
+const now = Date.now();
+const day = 86400000;
+const yearEndDeadline = (column, years) =>
+  `CAST(strftime('%s',printf('%04d-01-01',CAST(strftime('%Y',${column}/1000,'unixepoch') AS INTEGER)+${years + 1})) AS INTEGER)*1000`;
+const actionRetainUntil = Date.UTC(new Date(now).getUTCFullYear() + 4, 0, 1);
+function deleteLogged(entityType, sql, ...args) {
+  const rows = db.prepare(`${sql} RETURNING id`).all(...args);
+  const insert = db.prepare("INSERT INTO retention_actions (id,entity_type,entity_hash,action,created_at,retain_until) VALUES (?,?,?,?,?,?)");
+  for (const row of rows) insert.run(randomUUID(), entityType, createHash("sha256").update(row.id).digest("hex"), "deleted", now, actionRetainUntil);
+  return rows.length;
+}
+try {
+  db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE");
+  const result = {
+    crashReportsDeleted: db.prepare("DELETE FROM app_crash_reports WHERE created_at < ?").run(now - 30 * day).changes,
+    // Hourly execution plus a 47-hour threshold keeps hashed network entries below 48 hours.
+    rateLimitsDeleted: db.prepare("DELETE FROM auth_rate_limits WHERE updated_at < ? AND (blocked_until IS NULL OR blocked_until < ?)").run(now - 47 * 3600000, now).changes,
+    supportTicketsDeleted: deleteLogged("support_ticket", `DELETE FROM support_tickets WHERE id IN (
+      SELECT t.id FROM support_tickets t WHERE
+      ((t.status='resolved' AND t.resolved_at IS NOT NULL AND ${yearEndDeadline("t.resolved_at", 3)} <= ?)
+       OR (t.status<>'resolved' AND ${yearEndDeadline("t.updated_at", 3)} <= ?))
+      AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.entity_type='support_ticket' AND h.entity_id=t.id AND h.released_at IS NULL)
+      LIMIT 1000)`, now, now),
+    contractEvidenceDeleted: deleteLogged("contract_evidence", `DELETE FROM deleted_customer_archives WHERE id IN (
+      SELECT a.id FROM deleted_customer_archives a WHERE a.retention_review_at <= ?
+      AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.entity_type='contract_evidence' AND h.entity_id=a.id AND h.released_at IS NULL)
+      LIMIT 1000)`, now),
+    privacyRequestsDeleted: deleteLogged("privacy_request", `DELETE FROM privacy_request_records WHERE id IN (
+      SELECT p.id FROM privacy_request_records p WHERE p.retain_until <= ?
+      AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.entity_type='privacy_request' AND h.entity_id=p.id AND h.released_at IS NULL)
+      LIMIT 1000)`, now),
+    billingRecordsDeleted: 0,
+    expiredTokensDeleted: 0,
+  };
+  // The event-linked operational invoice row must not outlive its independent
+  // accounting record's retention deadline either.
+  db.prepare(`DELETE FROM invoice_requests WHERE id IN (
+      SELECT b.id FROM billing_records b WHERE b.retain_until <= ?
+      AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.entity_type='billing_record' AND h.entity_id=b.id AND h.released_at IS NULL)
+      LIMIT 1000)`).run(now);
+  result.billingRecordsDeleted = deleteLogged("billing_record", `DELETE FROM billing_records WHERE id IN (
+      SELECT b.id FROM billing_records b WHERE b.retain_until <= ?
+      AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.entity_type='billing_record' AND h.entity_id=b.id AND h.released_at IS NULL)
+      LIMIT 1000)`, now);
+  result.expiredTokensDeleted += db.prepare("DELETE FROM security_tokens WHERE expires_at <= ?").run(now).changes;
+  result.expiredTokensDeleted += db.prepare("DELETE FROM pending_registrations WHERE expires_at <= ?").run(now).changes;
+  result.expiredTokensDeleted += db.prepare("DELETE FROM pending_consumer_registrations WHERE expires_at <= ?").run(now).changes;
+  result.expiredTokensDeleted += db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now).changes;
+  db.prepare("UPDATE email_outbox SET payload_json='{}', status='failed' WHERE sensitive_expires_at IS NOT NULL AND sensitive_expires_at <= ? AND status <> 'sent' AND payload_json <> '{}'").run(now);
+  db.prepare("DELETE FROM retention_actions WHERE retain_until <= ?").run(now);
+  db.prepare(`INSERT INTO retention_runs (id,created_at,finished_at,crash_reports_deleted,rate_limits_deleted,support_tickets_deleted,contract_evidence_deleted,billing_records_deleted,privacy_requests_deleted,expired_tokens_deleted)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(randomUUID(), now, Date.now(), result.crashReportsDeleted, result.rateLimitsDeleted, result.supportTicketsDeleted, result.contractEvidenceDeleted, result.billingRecordsDeleted, result.privacyRequestsDeleted, result.expiredTokensDeleted);
+  db.exec("COMMIT");
+  process.stdout.write(`${JSON.stringify({event:"retention_completed",...result})}\n`);
+} catch (error) {
+  if (db.isTransaction) db.exec("ROLLBACK");
+  throw error;
+} finally {
+  db.close();
+}

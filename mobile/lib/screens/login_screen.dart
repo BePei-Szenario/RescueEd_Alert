@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../widgets/password_field.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -85,14 +86,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          TextField(
+          PasswordField(
             controller: password,
-            obscureText: true,
+            labelText: 'Passwort',
+            prefixIcon: Icons.lock_outline,
             autofillHints: const [AutofillHints.password],
-            decoration: const InputDecoration(
-              labelText: 'Passwort',
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
           ),
         ] else ...[
           TextField(

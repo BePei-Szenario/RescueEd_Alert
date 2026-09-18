@@ -1,0 +1,13 @@
+.archive-page .owner-tabs nav a,.archive-page aside nav a{display:flex;align-items:center;min-height:2.5rem;border-radius:.55rem;padding:.65rem .8rem;color:#b9cce3;font-size:.84rem;font-weight:750}
+.archive-page aside nav a:hover,.archive-page aside nav a.selected{background:#1769e0;color:white}
+.archive-page .archive-notice{margin-top:1.5rem;border:1px solid #c8dcf6;border-radius:.75rem;background:#eef5ff;padding:.9rem 1rem;color:#355271;font-size:.85rem;line-height:1.5}
+.archive-page .archive-categories{display:flex;flex-direction:row;flex-wrap:wrap;gap:.45rem;margin-top:1.3rem}
+.archive-page .archive-categories a{border:1px solid #ccdaeb;border-radius:.55rem;background:white;padding:.55rem .75rem;color:#294b73;font-size:.8rem;font-weight:750}
+.archive-page .archive-categories a.active{border-color:#1769e0;background:#1769e0;color:white}
+.archive-search{display:flex;align-items:end;flex-wrap:wrap;gap:.65rem;margin-bottom:1.2rem}
+.archive-search label{display:grid;gap:.25rem;min-width:min(100%,330px);color:#465b73;font-size:.75rem;font-weight:800}
+.archive-search input{width:100%;border:1px solid #cad8ea;border-radius:.55rem;padding:.65rem .75rem;font:inherit;font-weight:400}
+.archive-search button,.archive-search>a{border:1px solid #bfd1e8;border-radius:.55rem;padding:.65rem .85rem;background:#f4f8fe;color:#1558b4;font-size:.8rem;font-weight:800}
+.archive-search button{border-color:#1769e0;background:#1769e0;color:white;cursor:pointer}
+.archive-list{display:grid;gap:.65rem}.archive-entry{display:grid;gap:.55rem;border:1px solid #dce6f2;border-radius:.7rem;padding:.85rem 1rem}.archive-entry>div{display:grid;gap:.2rem}.archive-entry b{color:#10223d}.archive-entry small,.archive-entry span{color:#64748b;font-size:.8rem}.archive-entry code{overflow-wrap:anywhere}.archive-entry details{border-top:1px solid #e8eef6;padding-top:.5rem}.archive-entry summary{color:#1769e0;font-size:.8rem;font-weight:800;cursor:pointer}.archive-entry pre{max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:.5rem;background:#f5f8fc;padding:.8rem;color:#233b56;font-size:.75rem;line-height:1.45}.archive-pages{display:flex;align-items:center;justify-content:center;gap:1rem;margin-top:1.25rem;color:#64748b;font-size:.82rem}.archive-pages a{color:#1769e0;font-weight:800}
+@media(max-width:900px){.archive-page aside nav{display:flex}.archive-page .ownercontent{padding:1.25rem}.archive-page .archive-categories{gap:.35rem}}

@@ -1,10 +1,12 @@
+import {createHash} from "node:crypto";
 import {and,eq,inArray} from "drizzle-orm";
 import {getDb} from "@/db";
-import {appSubscriptions,auditLogs,deletedCustomerArchives,events,legalAcceptances,legalAcknowledgements,legalDocuments,legalDocumentVersions,organizations,securityTokens,sessions,supportTickets,users} from "@/db/schema";
+import {appSubscriptions,auditLogs,deletedCustomerArchives,events,legalAcceptances,legalAcknowledgements,legalDocuments,legalDocumentVersions,organizations,retentionActions,retentionHolds,securityTokens,sessions,supportTickets,users} from "@/db/schema";
 import {legalDocumentDefaults,type LegalDocumentKey} from "@/lib/legal-documents";
 import {clearRateLimit,consumeRateLimit,rateLimited} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {hashSecret,id,verifySecret} from "@/lib/security";
+import {calendarYearRetentionEnd} from "@/lib/retention";
 import {currentUser} from "@/lib/session";
 
 export async function POST(request:Request){
@@ -32,16 +34,27 @@ export async function POST(request:Request){
    const stored=storedDocuments.find(item=>item.documentKey===documentKey),fallback=legalDocumentDefaults[documentKey];
    return {documentKey,title:stored?.title||fallback.title,version:stored?.version||fallback.version,content:stored?.content||fallback.content,status:stored?.status||"draft"};
   });
-  const now=new Date(),retentionReviewAt=new Date(now);retentionReviewAt.setUTCFullYear(retentionReviewAt.getUTCFullYear()+3);
-  const archiveId=id("arc"),anonymousEmail=`deleted-${crypto.randomUUID()}@invalid.local`;
+  const now=new Date(),retentionReviewAt=calendarYearRetentionEnd(now,3);
+  const eventMembers=user.accountType==="organization"?await db.select({id:users.id}).from(users).where(and(eq(users.organizationId,user.organizationId),eq(users.role,"organization_member"))):[];
+  const archiveId=id("arc"),anonymousEmail=`deleted-${crypto.randomUUID()}@invalid.local`,deletedMemberPasswordHash=eventMembers.length?await hashSecret(crypto.randomUUID()+crypto.randomUUID()):"";
   await db.batch([
-   db.insert(deletedCustomerArchives).values({id:archiveId,sourceUserId:user.id,sourceOrganizationId:organization.id,fullName:user.fullName,email:user.email,organizationName:organization.name,billingEmail:organization.billingEmail,billingStreet:organization.billingStreet,billingHouseNumber:organization.billingHouseNumber,billingPostalCode:organization.billingPostalCode,billingCity:organization.billingCity,legalSnapshotJson:JSON.stringify({accountType:user.accountType,acceptances:acceptances.map(item=>({termsVersion:item.termsVersion,privacyVersion:item.privacyVersion,avvVersion:item.avvVersion,acceptedAt:item.acceptedAt.toISOString()})),acknowledgements:acknowledgements.map(item=>{const document=versionDocuments.find(version=>version.id===item.documentVersionId);return {documentKey:item.documentKey,version:item.documentVersion,contentHash:item.documentHash,acknowledgementType:item.acknowledgementType,acceptedAt:item.acceptedAt.toISOString(),title:document?.title||null,content:document?.content||null,publishedAt:document?.publishedAt.toISOString()||null}}),documents:acknowledgements.length?undefined:documents}),accountCreatedAt:user.createdAt,deletedAt:now,retentionReviewAt,createdAt:now}),
+   db.insert(deletedCustomerArchives).values({id:archiveId,sourceUserId:user.id,sourceOrganizationId:organization.id,fullName:user.fullName,email:user.email,organizationName:organization.name,legalSnapshotJson:JSON.stringify({accountType:user.accountType,acceptances:acceptances.map(item=>({termsVersion:item.termsVersion,privacyVersion:item.privacyVersion,avvVersion:item.avvVersion,acceptedAt:item.acceptedAt.toISOString()})),acknowledgements:acknowledgements.map(item=>{const document=versionDocuments.find(version=>version.id===item.documentVersionId);return {documentKey:item.documentKey,version:item.documentVersion,contentHash:item.documentHash,acknowledgementType:item.acknowledgementType,acceptedAt:item.acceptedAt.toISOString(),title:document?.title||null,content:document?.content||null,publishedAt:document?.publishedAt.toISOString()||null}}),documents:acknowledgements.length?undefined:documents}),accountCreatedAt:user.createdAt,deletedAt:now,retentionReviewAt,createdAt:now}),
+   ...(user.accountType==="consumer"?[db.insert(retentionHolds).values({id:id("hold"),entityType:"contract_evidence",entityId:archiveId,reason:"App-Store-Vertragsende nach Kontolöschung manuell verifizieren",reference:"B2C-Abo",createdAt:now})]:[]),
+   ...(user.accountType==="consumer"?[db.insert(retentionActions).values({id:id("ret"),entityType:"contract_evidence",entityHash:createHash("sha256").update(archiveId).digest("hex"),action:"hold_set",createdAt:now,retainUntil:retentionReviewAt.getTime()})]:[]),
    db.delete(sessions).where(eq(sessions.userId,user.id)),
    db.delete(securityTokens).where(eq(securityTokens.userId,user.id)),
    db.delete(appSubscriptions).where(eq(appSubscriptions.userId,user.id)),
    db.delete(supportTickets).where(eq(supportTickets.requesterUserId,user.id)),
-   db.update(events).set({status:"cancelled",endedAt:now}).where(and(eq(events.ownerUserId,user.id),inArray(events.status,["draft","active"]))),
+   db.delete(legalAcknowledgements).where(eq(legalAcknowledgements.userId,user.id)),
+   db.delete(legalAcceptances).where(eq(legalAcceptances.userId,user.id)),
+   db.update(events).set({status:"cancelled",endedAt:now}).where(and(user.accountType==="organization"?eq(events.organizationId,user.organizationId):eq(events.ownerUserId,user.id),inArray(events.status,["draft","active"]))),
+   ...eventMembers.flatMap(member=>[
+    db.delete(sessions).where(eq(sessions.userId,member.id)),
+    db.delete(securityTokens).where(eq(securityTokens.userId,member.id)),
+    db.update(users).set({fullName:"Gelöschter Event-Benutzer",email:`deleted-${crypto.randomUUID()}@invalid.local`,passwordHash:deletedMemberPasswordHash,status:"deleted" as const,mfaEnabled:false,emailVerifiedAt:null,lastLoginAt:null,deletedAt:now}).where(eq(users.id,member.id))
+   ]),
    db.update(users).set({fullName:"Gelöschter Kunde",email:anonymousEmail,passwordHash:await hashSecret(crypto.randomUUID()+crypto.randomUUID()),status:"deleted",mfaEnabled:false,emailVerifiedAt:null,lastLoginAt:null,deletedAt:now}).where(eq(users.id,user.id)),
+   db.update(organizations).set({name:"Gelöschter Kunde",billingEmail:anonymousEmail,billingStreet:null,billingHouseNumber:null,billingPostalCode:null,billingCity:null,complimentaryAccess:false,unlimitedEventDuration:false}).where(eq(organizations.id,organization.id)),
    db.insert(auditLogs).values({id:id("aud"),actorUserId:user.id,action:"account.deleted_by_customer",entityType:"deleted_customer_archive",entityId:archiveId,metadataJson:JSON.stringify({organizationId:organization.id,legalAcceptanceCount:acceptances.length}),createdAt:now})
   ]);
   await clearRateLimit("account-delete-user",account.id);

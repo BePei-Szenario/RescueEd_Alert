@@ -42,9 +42,6 @@ class AlertNotifications {
 
   Future<void> showAlarm({
     required String alertId,
-    required String eventName,
-    required String unitName,
-    String? message,
     String tone = 'piep_piep',
   }) async {
     final selected = alarmToneFor(tone);
@@ -55,6 +52,7 @@ class AlertNotifications {
       importance: Importance.max,
       priority: Priority.max,
       category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
       playSound: selected.hasSound,
       sound: selected.androidResource == null
           ? null
@@ -71,8 +69,8 @@ class AlertNotifications {
     final notificationId = _shown.putIfAbsent(alertId, () => _nextId++);
     await _plugin.show(
       notificationId,
-      'Alarm · $unitName',
-      message?.isNotEmpty == true ? message : eventName,
+      'RescueEd Alert · ALARM',
+      'Neue Alarmierung. Details nach dem Entsperren in der App.',
       NotificationDetails(android: android, iOS: ios),
     );
   }

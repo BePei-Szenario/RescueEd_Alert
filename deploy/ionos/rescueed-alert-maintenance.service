@@ -1,5 +1,5 @@
 [Unit]
-Description=RescueEd Alert Diagnose-Aufbewahrung
+Description=RescueEd Alert Aufbewahrung und Löschfristen
 
 [Service]
 Type=oneshot

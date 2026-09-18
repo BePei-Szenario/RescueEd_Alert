@@ -1,0 +1,17 @@
+[Unit]
+Description=RescueEd Alert verschlüsseltes SQLite-Backup
+
+[Service]
+Type=oneshot
+User=rescueed-alert
+Group=rescueed-alert
+WorkingDirectory=/opt/rescueed-alert/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/rescueed-alert/server.env
+ExecStart=/usr/bin/node scripts/backup-sqlite.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/rescueed-alert /var/backups/rescueed-alert
+UMask=0077

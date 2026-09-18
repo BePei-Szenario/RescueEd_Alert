@@ -22,8 +22,9 @@ export async function POST(request:Request){
   if(!accountLimit.allowed)return rateLimited(accountLimit.retryAfterSeconds);
   const db=getDb(),[user]=await db.select().from(users).where(eq(users.email,normalizedEmail)).limit(1);
   const validPassword=await verifySecret(password,user?.passwordHash||DUMMY_HASH);
-  const allowedArea=area==="unternehmer"?user?.role==="platform_owner":area==="mobile_consumer"?user?.accountType==="consumer":user?.accountType==="organization";
-  if(!user||user.status!=="active"||!allowedArea||!validPassword)return Response.json({error:"Anmeldedaten sind ungültig."},{status:401});
+  const allowedArea=area==="unternehmer"?(user?.role==="platform_owner"||user?.role==="platform_staff"):area==="mobile_consumer"?user?.accountType==="consumer":user?.accountType==="organization"&&(user.role==="customer"||user.role==="organization_member");
+  if(!user||user.status!=="active"||!validPassword)return Response.json({error:"Anmeldedaten sind ungültig."},{status:401});
+  if(!allowedArea)return Response.json({error:area==="unternehmer"||area==="mobile_consumer"&&user.accountType==="organization"?"Dieses Konto gehört zur Organisationsanmeldung. Bitte dort anmelden.":user.role==="platform_owner"||user.role==="platform_staff"?"Dieses Konto gehört zur Unternehmerplattform. Bitte dort anmelden.":"Dieser Zugang ist nur in der App möglich."},{status:403});
   const issueLimit=await consumeRateLimit({scope:"mfa-issue-account",subject:user.id,limit:5,windowMs:10*60_000});
   if(!issueLimit.allowed)return rateLimited(issueLimit.retryAfterSeconds);
   await clearRateLimit("login-account-network",accountSubject);

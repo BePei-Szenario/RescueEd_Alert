@@ -1,0 +1,3 @@
+.owner-tabs aside nav a.archive-nav-link{display:flex;align-items:center;gap:.65rem;width:100%;border:0;border-radius:.55rem;background:transparent;color:#9db6d4;padding:.72rem .8rem;text-align:left;font-size:.84rem;font-weight:700}
+.owner-tabs aside nav a.archive-nav-link svg{width:1.05rem;height:1.05rem}
+.owner-tabs aside nav a.archive-nav-link:hover,.owner-tabs aside nav a.archive-nav-link:focus-visible{background:#1769e0;color:#fff}

@@ -8,6 +8,8 @@ import '../attendance_qr_pdf.dart';
 import 'event_create_screen.dart';
 import 'settings_screen.dart';
 import 'consumer_subscription_screen.dart';
+import 'legal_reconfirmation_screen.dart';
+import '../widgets/password_field.dart';
 
 class OwnerScreen extends StatefulWidget {
   const OwnerScreen({super.key, required this.api, required this.onLogout,this.consumer=false});
@@ -23,6 +25,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
   bool loading = true;
   String? error;
   bool subscriptionActive=false;
+  bool legalUpdateRequired=false;
   String? consumerUserId;
   @override
   void initState() {
@@ -33,8 +36,9 @@ class _OwnerScreenState extends State<OwnerScreen> {
   Future<void> load() async {
     try {
       final data = await widget.api.get('/api/events');
+      final profile=await widget.api.get('/api/auth/me');
+      legalUpdateRequired=profile['legalUpdateRequired']==true;
       if(widget.consumer){
-        final profile=await widget.api.get('/api/auth/me');
         consumerUserId=profile['id'] as String?;
         final status=await widget.api.get('/api/mobile/consumer/subscription');
         subscriptionActive=status['active']==true;
@@ -58,6 +62,12 @@ class _OwnerScreenState extends State<OwnerScreen> {
   }
 
   Future<void> _createEvent()async{
+    if(legalUpdateRequired){
+      if(!mounted)return;
+      await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>LegalReconfirmationScreen(api:widget.api)));
+      await load();
+      if(legalUpdateRequired)return;
+    }
     if(widget.consumer){
       try{
         final status=await widget.api.get('/api/mobile/consumer/subscription');
@@ -84,7 +94,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
         const SizedBox(height:12),
         const Text('Wichtig: Die Kontolöschung kündigt dein Google-Play- oder App-Store-Abo nicht. Kündige es zuerst in den Abo-Einstellungen des Stores, damit keine weitere Abbuchung erfolgt.'),
         const SizedBox(height:12),
-        TextField(controller:password,obscureText:true,onChanged:(_)=>setDialog((){}),decoration:const InputDecoration(labelText:'Passwort zur Bestätigung')),
+        PasswordField(controller:password,labelText:'Passwort zur Bestätigung',onChanged:(_)=>setDialog((){})),
         CheckboxListTile(value:confirmed,onChanged:(value)=>setDialog(()=>confirmed=value==true),title:const Text('Ich möchte mein App-Konto endgültig löschen.')),
       ]))),
       actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Abbrechen')),FilledButton(onPressed:confirmed&&password.text.isNotEmpty?()=>Navigator.pop(dialogContext,true):null,child:const Text('Konto löschen'))],
@@ -144,6 +154,13 @@ class _OwnerScreenState extends State<OwnerScreen> {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 20),
+                if(legalUpdateRequired)Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                  const Text('Aktuelle Rechtstexte bestätigen',style:TextStyle(fontWeight:FontWeight.bold)),
+                  const SizedBox(height:8),
+                  const Text('Neue Events sind bis zur Bestätigung gesperrt. Laufende Events bleiben erreichbar.'),
+                  const SizedBox(height:10),
+                  FilledButton(onPressed:()async{await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>LegalReconfirmationScreen(api:widget.api)));await load();},child:const Text('Fassungen ansehen')),
+                ]))),
                 if(widget.consumer&&!subscriptionActive)Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(children:[const Text('Kein aktives App-Abo bestätigt. Bereits gestartete Events bleiben nutzbar; neue Events sind gesperrt.'),const SizedBox(height:10),FilledButton(onPressed:_createEvent,child:const Text('Monatsabo prüfen oder abschließen'))]))),
                 if(widget.consumer&&subscriptionActive)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('App-Abo aktiv · Neue Events sind im Abo enthalten.'))),
                 if (error != null) _ErrorCard(error!, load),

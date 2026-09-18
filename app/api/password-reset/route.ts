@@ -15,7 +15,9 @@ export async function POST(request:Request){
   const db=getDb(),hash=await tokenHash(token),now=new Date();
   const [record]=await db.select().from(securityTokens).where(and(eq(securityTokens.tokenHash,hash),inArray(securityTokens.purpose,["password_setup","password_reset"]),isNull(securityTokens.usedAt),gt(securityTokens.expiresAt,now))).limit(1);
   if(record){
-   await db.batch([db.update(users).set({passwordHash:await hashSecret(password),emailVerifiedAt:now,status:"active"}).where(eq(users.id,record.userId)),db.update(securityTokens).set({usedAt:now}).where(eq(securityTokens.id,record.id)),db.delete(sessions).where(eq(sessions.userId,record.userId)),db.insert(auditLogs).values({id:id("aud"),actorUserId:record.userId,action:"password.changed",entityType:"user",entityId:record.userId,createdAt:now})]);
+   const [target]=await db.select({status:users.status}).from(users).where(eq(users.id,record.userId)).limit(1);
+   if(!target||target.status==="deleted"||(record.purpose==="password_setup"&&target.status!=="blocked")||(record.purpose==="password_reset"&&target.status!=="active"))return Response.json({error:"Der Passwortlink ist ungültig oder abgelaufen."},{status:400});
+   await db.batch([db.update(users).set({passwordHash:await hashSecret(password),emailVerifiedAt:now,status:record.purpose==="password_setup"?"active":target.status}).where(eq(users.id,record.userId)),db.update(securityTokens).set({usedAt:now}).where(eq(securityTokens.id,record.id)),db.delete(sessions).where(eq(sessions.userId,record.userId)),db.insert(auditLogs).values({id:id("aud"),actorUserId:record.userId,action:"password.changed",entityType:"user",entityId:record.userId,createdAt:now})]);
    return Response.json({ok:true,type:"password_reset"});
   }
   const [pending]=await db.select().from(pendingRegistrations).where(and(eq(pendingRegistrations.tokenHash,hash),isNull(pendingRegistrations.usedAt),gt(pendingRegistrations.expiresAt,now))).limit(1);
@@ -29,7 +31,7 @@ export async function POST(request:Request){
   if(existing)return Response.json({error:"Für diese E-Mail-Adresse besteht bereits ein Konto."},{status:409});
   const organizationId=id("org"),userId=id("usr");
   await db.batch([
-   db.insert(organizations).values({id:organizationId,name:pending.organizationName,billingEmail:pending.email,billingStreet:pending.street,billingHouseNumber:pending.houseNumber,billingPostalCode:pending.postalCode,billingCity:pending.city,createdAt:now}),
+   db.insert(organizations).values({id:organizationId,name:pending.organizationName,organizationType:pending.organizationType,billingEmail:pending.email,billingStreet:pending.street,billingHouseNumber:pending.houseNumber,billingPostalCode:pending.postalCode,billingCity:pending.city,createdAt:now}),
    db.insert(users).values({id:userId,organizationId,fullName:pending.contactName,email:pending.email,passwordHash:await hashSecret(password),emailVerifiedAt:now,status:"active",createdAt:now}),
    db.insert(legalAcceptances).values({id:id("consent"),userId,termsVersion:pending.termsVersion,privacyVersion:pending.privacyVersion,avvVersion:pending.avvVersion,acceptedAt:pending.acceptedAt,createdAt:now}),
    ...currentEvidence.map(document=>db.insert(legalAcknowledgements).values({id:id("lack"),userId,organizationId,documentVersionId:document.documentVersionId,documentKey:document.documentKey,documentVersion:document.documentVersion,documentHash:document.documentHash,acknowledgementType:document.acknowledgementType,acceptedAt:pending.acceptedAt,createdAt:now})),
