@@ -25,7 +25,8 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   if(message.length>150)return Response.json({error:"Die Alarmmeldung darf höchstens 150 Zeichen enthalten."},{status:400});
   const db=getDb(),units=await db.select({id:assignments.id,name:assignments.name}).from(assignments).where(and(eq(assignments.eventId,event.id),isNull(assignments.removedAt),inArray(assignments.id,assignmentIds)));
   if(units.length!==assignmentIds.length)return Response.json({error:"Mindestens ein ausgewähltes Sanitätsmittel ist ungültig."},{status:400});
-  const recipients=await db.select({id:helpers.id,assignmentId:helpers.assignmentId}).from(helpers).where(and(eq(helpers.eventId,event.id),isNull(helpers.removedAt),inArray(helpers.assignmentId,assignmentIds)));
+  const recipients=await db.select({id:helpers.id,assignmentId:helpers.assignmentId}).from(helpers).where(and(eq(helpers.eventId,event.id),eq(helpers.registrationSource,"qr"),isNull(helpers.removedAt),inArray(helpers.assignmentId,assignmentIds)));
+  if(units.some(unit=>!recipients.some(recipient=>recipient.assignmentId===unit.id)))return Response.json({error:"Jedes Sanitätsmittel benötigt mindestens einen per QR-Code eingecheckten Helfer für eine Alarmierung."},{status:400});
   const alertId=id("alt"),now=new Date();
   await db.batch([
    db.insert(alerts).values({id:alertId,eventId:event.id,createdByUserId:user.id,message:message||null,createdAt:now}),

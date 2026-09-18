@@ -1,0 +1,1 @@
+ALTER TABLE `helpers` ADD `registration_source` text DEFAULT 'qr' NOT NULL;

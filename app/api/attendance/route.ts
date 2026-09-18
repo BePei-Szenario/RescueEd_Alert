@@ -27,8 +27,8 @@ export async function POST(request:Request){
    if(!firstName||!lastName||!qualification)return Response.json({error:"Bitte Vorname, Nachname und Qualifikation angeben."},{status:400});
    if(firstName.length>80||lastName.length>80||qualification.length>100)return Response.json({error:"Eine Eingabe ist zu lang."},{status:400});
     const helperToken=crypto.randomUUID()+crypto.randomUUID(),helperId=id("hlp"),name=`${firstName} ${lastName}`,sessionTokenHash=await tokenHash(helperToken);
-    const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,session_token_hash,registered_at,removed_at)
-      SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${sessionTokenHash},${now.getTime()},NULL
+    const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,session_token_hash,registration_source,registered_at,removed_at)
+      SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${sessionTokenHash},'qr',${now.getTime()},NULL
       WHERE (SELECT COUNT(*) FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL) < ${event.helperLimit}
       AND NOT EXISTS (SELECT 1 FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL AND lower(trim(name))=lower(trim(${name}))) RETURNING id`);
     if(inserted.length!==1)return Response.json({error:"Die maximale Helferzahl ist erreicht oder diese Person bereits eingecheckt."},{status:409});

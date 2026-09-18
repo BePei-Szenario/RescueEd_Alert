@@ -323,6 +323,21 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
   }
 
   Future<void> addHelper() async {
+    final acknowledged = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Helfer anlegen'),
+        content: const Text('Helfer kann nicht alarmiert werden, er wird nur in der Anwesenheit angezeigt und protokolliert!'),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || acknowledged != true) return;
     final first = await ask('Helfer anlegen', 'Vorname');
     if (first?.isEmpty != false) return;
     final last = await ask('Helfer anlegen', 'Nachname');
@@ -351,9 +366,11 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
   }
 
   Future<void> sendAlarm() async {
+    final helpers = (data?['helpers'] as List? ?? []);
     final units = (data?['assignments'] as List? ?? [])
         .where(
-          (u) => u['removedAt'] == null && u['operationalStatus'] != 'deployed',
+          (u) => u['removedAt'] == null && u['operationalStatus'] != 'deployed' &&
+              helpers.any((h) => h['removedAt'] == null && h['registrationSource'] == 'qr' && h['assignmentId'] == u['id']),
         )
         .toList();
     final selected = <String>{};
@@ -557,6 +574,9 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
         .where((u) => u['removedAt'] == null)
         .cast<Map<String, dynamic>>()
         .toList();
+    final hasAlertableUnit = units.any((u) =>
+        u['operationalStatus'] != 'deployed' &&
+        helpers.any((h) => h['registrationSource'] == 'qr' && h['assignmentId'] == u['id']));
     return Scaffold(
       appBar: AppBar(
         title: Text(event?['name'] ?? 'Event'),
@@ -586,7 +606,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
           : FloatingActionButton.extended(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
-              onPressed: units.isEmpty ? null : sendAlarm,
+              onPressed: hasAlertableUnit ? sendAlarm : null,
               icon: const Icon(Icons.notifications_active),
               label: const Text('Alarmieren'),
             ),
@@ -645,7 +665,9 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          DropdownButton<String>(
+                          if (h['registrationSource'] == 'manual')
+                            const Text('Nur Anwesenheit', style: TextStyle(color: Colors.black54))
+                          else DropdownButton<String>(
                             value: h['assignmentId'] as String?,
                             hint: const Text('Offen'),
                             items: [

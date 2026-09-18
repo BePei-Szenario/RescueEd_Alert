@@ -11,3 +11,13 @@
 .legal-update-back{display:inline-block;margin-left:18px;color:#1765d8;text-decoration:none;font-size:14px}.legal-update-error{color:#b42318}
 .portal-legal-update{display:flex;align-items:center;justify-content:space-between;gap:20px;background:#fff8e8;border:1px solid #e5c575;border-radius:12px;padding:16px 20px;margin:18px 0}.portal-legal-update b{color:#714b00}.portal-legal-update p{margin:4px 0 0;color:#5f4a22;font-size:14px}.portal-legal-update a{flex:none;color:#0b58c5;font-weight:700}
 @media(max-width:650px){.legal-update-card{margin:18px 12px;padding:20px}.portal-legal-update{display:block}.portal-legal-update a{display:inline-block;margin-top:12px}.legal-update-back{display:block;margin:16px 0 0}}
+.legal-update-card{margin-top:24px;padding:22px}
+.legal-update-card h1{font-size:25px}
+.legal-update-card>p{font-size:14px}
+.legal-update-documents{gap:10px;margin:16px 0}
+.legal-update-documents article{padding:12px}
+.legal-update-documents summary{font-size:14px}
+.legal-update-content{font-size:14px;line-height:1.6;padding:12px}
+.legal-update-documents label{font-size:13px;margin-top:10px}
+.legal-update-card button,.legal-update-back{font-size:13px}
+@media(max-width:650px){.legal-update-card{margin:12px 8px;padding:16px}.legal-update-card h1{font-size:23px}.legal-update-documents article{padding:10px}.legal-update-card button{width:100%;min-height:44px}}

@@ -3,3 +3,5 @@
 .legal-version{border:1px solid #d8e0ea;border-radius:.65rem;padding:.7rem}.legal-version details summary{cursor:pointer;color:#10223d;font-weight:800}.legal-version-content{max-height:15rem;overflow:auto;white-space:pre-wrap;line-height:1.5;margin:.6rem 0;padding:.8rem;background:#f6f9fe;border-radius:.4rem}.legal-version label{margin-top:.6rem}.legal-version input:disabled{opacity:.45}
 .registrationform select{width:100%;padding:.8rem 0;background:transparent;color:#10223d;font-weight:400;outline:0}
 .authform>button.textlink{width:auto;margin:.75rem auto 0;padding:0;background:transparent;color:#1769e0;font-size:.82rem;font-weight:700}
+.legal-version details summary{font-size:14px}
+.legal-version-content{font-size:14px;line-height:1.6}

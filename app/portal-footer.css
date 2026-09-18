@@ -41,3 +41,6 @@
 .account-delete-success h2{margin:0 0 .4rem}
 @media(max-width:760px){.portalfooter{align-items:flex-start;flex-direction:column}.portalfooter p{text-align:left}}
 .portal-header-actions{display:flex;align-items:center;gap:1rem}.portal-header-actions>a{color:#d8e8fc;font-size:.84rem;font-weight:750}.portal-header-actions>a:hover{text-decoration:underline}
+.portal-legal-modal h2{font-size:1.3rem}
+.portal-legal-content{font-size:14px;line-height:1.6}
+@media(max-width:600px){.portal-legal-modal>header,.portal-legal-content,.portal-legal-modal>footer{padding-inline:1rem}}
