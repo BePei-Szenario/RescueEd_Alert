@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
 import '../app_version.dart';
+import '../legal_documents.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -14,11 +15,12 @@ class HomeScreen extends StatelessWidget {
   });
   final ApiClient api;
   final VoidCallback onLogin, onScan;
-  final VoidCallback onConsumerLogin,onConsumerRegister;
+  final VoidCallback onConsumerLogin, onConsumerRegister;
 
   Future<void> _showLegal(BuildContext context, String slug) async {
     try {
-      final document = await api.get('/api/legal-documents/$slug');
+      final result = await LegalDocuments(api).publicDocument(slug);
+      final document = result.data;
       if (!context.mounted) return;
       await showDialog<void>(
         context: context,
@@ -27,7 +29,19 @@ class HomeScreen extends StatelessWidget {
           content: SizedBox(
             width: 520,
             child: SingleChildScrollView(
-              child: SelectableText(document['content']?.toString() ?? ''),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (result.fromCache) ...[
+                    const Text(
+                      'Offline gespeicherte Fassung – sobald eine Verbindung besteht, wird sie automatisch aktualisiert.',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  SelectableText(document['content']?.toString() ?? ''),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -57,7 +71,7 @@ class HomeScreen extends StatelessWidget {
           style: TextButton.styleFrom(foregroundColor: Colors.white),
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => SettingsScreen(api:api)),
+            MaterialPageRoute(builder: (_) => SettingsScreen(api: api)),
           ),
           icon: const Icon(Icons.settings_outlined),
           label: const Text('Einstellungen'),
@@ -108,10 +122,30 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(width:double.infinity,height:56,child:FilledButton.icon(onPressed:onConsumerRegister,icon:const Icon(Icons.person_add_alt_1),label:const Text('Privatkonto registrieren'))),
-                  const SizedBox(height:12),
-                  SizedBox(width:double.infinity,height:56,child:OutlinedButton.icon(onPressed:onConsumerLogin,icon:const Icon(Icons.person_outline),label:const Text('Privatkonto anmelden'),style:OutlinedButton.styleFrom(foregroundColor:Colors.white,side:const BorderSide(color:Color(0xff7891ad))))),
-                  const SizedBox(height:12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: onConsumerRegister,
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Privatkonto registrieren'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: onConsumerLogin,
+                      icon: const Icon(Icons.person_outline),
+                      label: const Text('Privatkonto anmelden'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xff7891ad)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     height: 56,
