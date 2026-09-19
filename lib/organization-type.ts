@@ -16,6 +16,13 @@ const activeServiceLabels: Record<OrganizationType, string> = {
  alarmierungsnutzer: "Aktiver Alarmierungsdienst",
 };
 
+const organizationServiceLabels: Record<OrganizationType, string> = {
+ feuerwehr: "Feuerwehrdienst",
+ sanitaetsdienst: "Sanitätsdienst",
+ thw: "THW-Dienst",
+ alarmierungsnutzer: "Alarmierungsdienst",
+};
+
 export function isOrganizationType(value: unknown): value is OrganizationType {
  return typeof value === "string" && organizationTypes.some(type => type === value);
 }
@@ -26,4 +33,8 @@ export function organizationTypeLabel(value: OrganizationType | null | undefined
 
 export function activeServiceLabel(value: OrganizationType | null | undefined): string {
  return value ? activeServiceLabels[value] : "Aktiver Dienst";
+}
+
+export function organizationServiceLabel(value: OrganizationType | null | undefined): string {
+ return value ? organizationServiceLabels[value] : "Einsatzmittel";
 }
