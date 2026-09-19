@@ -60,18 +60,21 @@ class _ConsumerSubscriptionScreenState
         widget.onActive();
         return;
       }
-      if (productId.isEmpty)
+      if (productId.isEmpty) {
         throw StateError(
           'Das Monatsabo ist im Store noch nicht eingerichtet. Bitte später erneut versuchen.',
         );
-      if (!await store.isAvailable())
+      }
+      if (!await store.isAvailable()) {
         throw StateError(
           'Der App Store ist auf diesem Gerät nicht erreichbar.',
         );
+      }
       final products = await store.queryProductDetails({productId});
       if (products.error != null) throw StateError(products.error!.message);
-      if (products.productDetails.length != 1)
+      if (products.productDetails.length != 1) {
         throw StateError('Das Monatsabo wurde im Store noch nicht gefunden.');
+      }
       product = products.productDetails.single;
     } catch (e) {
       error = e.toString();
@@ -87,11 +90,12 @@ class _ConsumerSubscriptionScreenState
         continue;
       }
       if (purchase.status == PurchaseStatus.error) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             busy = false;
             error = purchase.error?.message ?? 'Kauf fehlgeschlagen.';
           });
+        }
         continue;
       }
       if (purchase.status == PurchaseStatus.canceled) {
@@ -99,37 +103,43 @@ class _ConsumerSubscriptionScreenState
         continue;
       }
       if (purchase.status != PurchaseStatus.purchased &&
-          purchase.status != PurchaseStatus.restored)
+          purchase.status != PurchaseStatus.restored) {
         continue;
+      }
       try {
         final reference = Platform.isIOS
             ? purchase.purchaseID
             : purchase.verificationData.serverVerificationData;
-        if (reference == null || reference.isEmpty)
+        if (reference == null || reference.isEmpty) {
           throw StateError('Store-Kaufreferenz fehlt.');
+        }
         final result = await widget.api.post(
           '/api/mobile/consumer/subscription',
           {'store': storeName, 'reference': reference},
         );
-        if (result['active'] != true)
+        if (result['active'] != true) {
           throw StateError(
             'Der Store hat noch kein aktives Abo bestätigt. Bitte nach Zahlungsabschluss erneut versuchen.',
           );
-        if (purchase.pendingCompletePurchase)
+        }
+        if (purchase.pendingCompletePurchase) {
           await store.completePurchase(purchase);
-        if (mounted)
+        }
+        if (mounted) {
           setState(() {
             active = true;
             busy = false;
             error = null;
           });
+        }
         widget.onActive();
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             busy = false;
             error = e.toString();
           });
+        }
       }
     }
   }
@@ -148,11 +158,12 @@ class _ConsumerSubscriptionScreenState
         ),
       );
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           busy = false;
           error = e.toString();
         });
+      }
     }
   }
 
