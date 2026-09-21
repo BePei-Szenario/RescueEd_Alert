@@ -3,6 +3,7 @@
 .pricebox .pricebreakdown{display:grid;grid-template-columns:1fr auto;gap:.35rem;border-block:1px solid #e2e8f0;padding:.8rem 0}
 .pricebox .pricebreakdown span{color:#64748b;font-size:.8rem}
 .pricebox .pricebreakdown b{color:#10223d;font-size:.85rem}
+.pricebox>div span small{display:block;margin-top:.2rem;color:#64748b;font-size:.7rem;font-weight:600}
 .pricebox button:disabled{cursor:not-allowed;opacity:.65}
 .pricebox button.complimentary-order{background:#1769e0;box-shadow:0 6px 18px #1769e02e}
 .confirmation-backdrop{position:fixed;z-index:50;inset:0;display:grid;place-items:center;background:#071a33b8;padding:1.25rem}
@@ -13,8 +14,20 @@
 .confirmation-dialog button{min-width:8rem;border-radius:.7rem;background:#1769e0;padding:.8rem 1.2rem;color:#fff;font-weight:800}
 .order-review-dialog .order-event-name{margin:.9rem 0 .25rem;color:#10223d;font-size:1.1rem;font-weight:850}
 .order-review-dialog .order-event-name+p{margin:.25rem 0 1.5rem}
+.order-review-dialog{width:min(38rem,100%);text-align:left}
+.order-review-dialog h2{text-align:center}
+.order-review-summary dl{display:grid;gap:.65rem;margin:1.25rem 0}
+.order-review-summary dl div{display:grid;grid-template-columns:9rem 1fr;gap:1rem}
+.order-review-summary dt{color:#64748b;font-size:.8rem;font-weight:700}
+.order-review-summary dd{font-size:.88rem;font-weight:700;overflow-wrap:anywhere}
+.order-review-prices{display:grid;grid-template-columns:1fr auto;gap:.45rem;border-block:1px solid #dbe3ed;padding:1rem 0}
+.order-review-prices span{color:#52647a;font-size:.86rem}
+.order-review-prices b{font-size:.9rem;text-align:right}
+.order-review-prices strong{margin-top:.35rem;border-top:2px solid #10223d;padding-top:.7rem;font-size:1.05rem}
+.order-review-prices strong:last-child{color:#1769e0;text-align:right;font-size:1.25rem}
+.order-review-summary>p{margin:.9rem 0 1.25rem;font-size:.8rem}
 .confirmation-actions{display:flex;justify-content:center;gap:.75rem}
 .confirmation-dialog .confirmation-cancel{background:#fff;color:#10223d;border:1px solid #cbd5e1}
 .confirmation-dialog button:disabled{cursor:not-allowed;opacity:.65}
-@media(max-width:760px){.threecol{grid-template-columns:1fr}}
+@media(max-width:760px){.threecol{grid-template-columns:1fr}.order-review-summary dl div{grid-template-columns:1fr;gap:.15rem}}
 @media(max-width:520px){.confirmation-actions{flex-direction:column-reverse}.confirmation-actions button{width:100%}}

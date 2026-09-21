@@ -123,6 +123,26 @@ class _OwnerScreenState extends State<OwnerScreen> {
     await load();
   }
 
+  Future<void> _openSubscriptionManagement() async {
+    if (consumerUserId == null) {
+      await load();
+      if (consumerUserId == null || !mounted) return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConsumerSubscriptionScreen(
+          api: widget.api,
+          userId: consumerUserId!,
+          onActive: () {
+            if (mounted) Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+    await load();
+  }
+
   Future<void> _deleteConsumerAccount() async {
     final password = TextEditingController();
     bool confirmed = false;
@@ -300,11 +320,22 @@ class _OwnerScreenState extends State<OwnerScreen> {
                     ),
                   ),
                 if (widget.consumer && subscriptionActive)
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'App-Abo aktiv · Neue Events sind im Abo enthalten.',
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'App-Abo aktiv · Neue Events sind im Abo enthalten.',
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: _openSubscriptionManagement,
+                            child: const Text(
+                              'Abo verwalten oder Vertrag widerrufen',
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

@@ -40,6 +40,9 @@ function body(data) {
     if (data.event) lines.push(`Event: ${data.event.name}`, `Zeitraum: ${data.event.period}`, `Helferzahl: ${data.event.helperLimit}`);
     lines.push(`Leistung: ${data.service}`, `Netto: ${euro(data.pricing?.netCents)}`, `Umsatzsteuer (${data.pricing?.vatRatePercent || 0} %): ${euro(data.pricing?.vatCents)}`, `Gesamtbetrag: ${euro(data.pricing?.grossCents)}`, `Zahlungsart: ${data.paymentMethod}`, String(data.billingTiming || ""));
   }
+  if (data.template === "withdrawal_confirmation") {
+    lines.push("", `Widerrufsreferenz: ${data.withdrawalReference}`, `Eingegangen am: ${data.requestedAt}`, `Store: ${data.store}`, `Produkt: ${data.productId}`, "", String(data.statement || ""), "", "Der Widerruf wird geprüft und eine erforderliche Rückerstattung über den beim Kauf verwendeten Store bearbeitet. Die Kündigung künftiger Verlängerungen ist davon getrennt.");
+  }
   lines.push("", "---", String(data.signature || ""));
   return lines.join("\n");
 }

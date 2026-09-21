@@ -27,6 +27,11 @@ class LegalDocuments {
     () => api.get('/api/mobile/consumer/register'),
   );
 
+  Future<LegalDocumentResult> organizationRegistrationDocuments() => _load(
+    'organization_registration_documents',
+    () => api.get('/api/register/legal'),
+  );
+
   Future<LegalDocumentResult> reconfirmation() async {
     try {
       final data = await api.get('/api/legal/reconfirmation');

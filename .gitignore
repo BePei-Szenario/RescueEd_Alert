@@ -53,3 +53,6 @@ next-env.d.ts
 /mobile/android/key.properties
 *.jks
 *.keystore
+
+# Local legal review documents; never publish to the source repository.
+/docs/legal/aktualisiert_*/
