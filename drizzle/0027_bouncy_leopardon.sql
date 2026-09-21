@@ -1,0 +1,2 @@
+ALTER TABLE `app_subscription_withdrawals` ADD `retain_until` integer NOT NULL;--> statement-breakpoint
+CREATE INDEX `idx_subscription_withdrawal_retention` ON `app_subscription_withdrawals` (`retain_until`);

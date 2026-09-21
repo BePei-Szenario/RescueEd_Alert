@@ -2,18 +2,24 @@ import {and,eq} from "drizzle-orm";
 import {getDb} from "@/db";
 import {appSubscriptions} from "@/db/schema";
 import {id,tokenHash} from "@/lib/security";
+import type {ConsumerLegalEvidence} from "@/lib/consumer-legal";
 
 const env=process.env;
 
 export type StoreName="google"|"apple";
 type SubscriptionStatus="active"|"grace"|"expired"|"pending"|"revoked";
-type Verified={status:SubscriptionStatus;expiresAt:Date|null;productId:string};
+type Verified={status:SubscriptionStatus;expiresAt:Date|null;productId:string;purchasedAt:Date};
 const encoder=new TextEncoder();
 const live=(status:SubscriptionStatus,expiresAt:Date|null)=>["active","grace"].includes(status)&&!!expiresAt&&expiresAt.getTime()>Date.now();
 
 function base64url(bytes:Uint8Array){let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")}
 function pemBytes(pem:string){const body=pem.replace(/-----[^-]+-----/g,"").replace(/\s/g,"");return Uint8Array.from(atob(body),char=>char.charCodeAt(0))}
 function jsonPayload(jwt:string){const middle=jwt.split(".")[1];if(!middle)throw new Error("Ungültige Store-Antwort.");return JSON.parse(atob(middle.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(middle.length/4)*4,"="))) as Record<string,unknown>}
+function appleAccountToken(userId:string){
+ const token=userId.startsWith("usr_")?userId.slice(4):userId;
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token))throw new Error("Das App-Konto besitzt keine gültige Apple-Kontozuordnung.");
+ return token.toLowerCase();
+}
 async function signJwt(header:Record<string,unknown>,payload:Record<string,unknown>,pem:string,algorithm:"RS256"|"ES256"){
  const data=`${base64url(encoder.encode(JSON.stringify(header)))}.${base64url(encoder.encode(JSON.stringify(payload)))}`;
  const key=await crypto.subtle.importKey("pkcs8",pemBytes(pem),algorithm==="RS256"?{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"}:{name:"ECDSA",namedCurve:"P-256"},false,["sign"]);
@@ -36,7 +42,7 @@ async function verifyGoogle(reference:string,userId:string):Promise<Verified>{
  const url=`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}/purchases/subscriptionsv2/tokens/${encodeURIComponent(reference)}`;
  const response=await fetch(url,{headers:{authorization:`Bearer ${bearer}`},signal:AbortSignal.timeout(8000)});
  if(!response.ok)throw new Error("Google Play konnte das Abo nicht bestätigen.");
- const data=await response.json() as {subscriptionState?:string;lineItems?:Array<{productId?:string;expiryTime?:string}>;externalAccountIdentifiers?:{obfuscatedExternalAccountId?:string};acknowledgementState?:string};
+ const data=await response.json() as {startTime?:string;subscriptionState?:string;lineItems?:Array<{productId?:string;expiryTime?:string}>;externalAccountIdentifiers?:{obfuscatedExternalAccountId?:string};acknowledgementState?:string};
  if(data.externalAccountIdentifiers?.obfuscatedExternalAccountId!==userId)throw new Error("Der Kauf gehört nicht zu diesem App-Konto.");
  const item=data.lineItems?.find(row=>row.productId===productId),expiresAt=item?.expiryTime?new Date(item.expiryTime):null;
  if(!item||!expiresAt||Number.isNaN(expiresAt.getTime()))throw new Error("Falsches oder ungültiges Google-Produkt.");
@@ -50,7 +56,9 @@ async function verifyGoogle(reference:string,userId:string):Promise<Verified>{
   const ack=await fetch(ackUrl,{method:"POST",headers:{authorization:`Bearer ${bearer}`,"content-type":"application/json"},body:"{}",signal:AbortSignal.timeout(8000)});
   if(!ack.ok)throw new Error("Google Play Kaufbestätigung fehlgeschlagen.");
  }
- return {status,expiresAt,productId};
+ const purchasedAt=data.startTime?new Date(data.startTime):new Date();
+ if(Number.isNaN(purchasedAt.getTime()))throw new Error("Google Play Kaufzeitpunkt ist ungültig.");
+ return {status,expiresAt,productId,purchasedAt};
 }
 async function appleAuthorization(){
  const {APPLE_BUNDLE_ID:bundleId,APPLE_ISSUER_ID:issuerId,APPLE_KEY_ID:keyId,APPLE_PRIVATE_KEY:privateKey}=env;
@@ -73,11 +81,11 @@ async function verifyApple(reference:string,userId:string):Promise<Verified>{
   if(!item.signedTransactionInfo)continue;
   // This JWS is parsed only from Apple's authenticated server-to-server response, never from client input.
   const transaction=jsonPayload(item.signedTransactionInfo);
-  if(transaction.bundleId!==bundleId||transaction.productId!==productId||transaction.appAccountToken!==userId)continue;
-  const expiry=Number(transaction.expiresDate),expiresAt=Number.isFinite(expiry)?new Date(expiry):null;
+  if(transaction.bundleId!==bundleId||transaction.productId!==productId||String(transaction.appAccountToken||"").toLowerCase()!==appleAccountToken(userId))continue;
+  const expiry=Number(transaction.expiresDate),purchase=Number(transaction.originalPurchaseDate??transaction.purchaseDate),expiresAt=Number.isFinite(expiry)?new Date(expiry):null,purchasedAt=Number.isFinite(purchase)?new Date(purchase):new Date();
   if(!expiresAt||Number.isNaN(expiresAt.getTime()))continue;
   const status:SubscriptionStatus=item.status===1?"active":item.status===4?"grace":"expired";
-  candidates.push({status:live(status,expiresAt)?status:"expired",expiresAt,productId});
+  candidates.push({status:live(status,expiresAt)?status:"expired",expiresAt,productId,purchasedAt});
  }
  const active=candidates.filter(candidate=>live(candidate.status,candidate.expiresAt)).sort((a,b)=>(b.expiresAt?.getTime()||0)-(a.expiresAt?.getTime()||0))[0];
  if(active)return active;
@@ -106,13 +114,13 @@ async function decryptReference(encrypted:string,userId:string,store:StoreName){
  return new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:decodeBase64url(iv),additionalData:encoder.encode(`${userId}:${store}`)},key,decodeBase64url(value)));
 }
 
-export async function claimSubscription(userId:string,store:StoreName,reference:string){
- const verified=await verifyStoreSubscription(store,reference,userId),db=getDb(),referenceHash=await tokenHash(reference),now=new Date();
+export async function claimSubscription(userId:string,store:StoreName,reference:string,legalEvidence:ConsumerLegalEvidence[],legalAcceptedAt:Date){
+ const verified=await verifyStoreSubscription(store,reference,userId),db=getDb(),referenceHash=await tokenHash(reference),now=new Date(),legalEvidenceJson=JSON.stringify(legalEvidence);
  const [existing]=await db.select().from(appSubscriptions).where(and(eq(appSubscriptions.store,store),eq(appSubscriptions.storeReferenceHash,referenceHash))).limit(1);
  if(existing&&existing.userId!==userId)throw new Error("Dieser Kauf ist bereits einem anderen Konto zugeordnet.");
- if(existing)await db.update(appSubscriptions).set({status:verified.status,expiresAt:verified.expiresAt,lastVerifiedAt:now}).where(eq(appSubscriptions.id,existing.id));
- else await db.insert(appSubscriptions).values({id:id("sub"),userId,store,storeReferenceHash:referenceHash,storeReferenceEncrypted:await encryptReference(reference,userId,store),productId:verified.productId,status:verified.status,expiresAt:verified.expiresAt,lastVerifiedAt:now,createdAt:now});
- return {active:live(verified.status,verified.expiresAt),status:verified.status,expiresAt:verified.expiresAt};
+ if(existing)await db.update(appSubscriptions).set({status:verified.status,purchasedAt:existing.purchasedAt||verified.purchasedAt,expiresAt:verified.expiresAt,lastVerifiedAt:now,legalEvidenceJson,legalAcceptedAt}).where(eq(appSubscriptions.id,existing.id));
+ else await db.insert(appSubscriptions).values({id:id("sub"),userId,store,storeReferenceHash:referenceHash,storeReferenceEncrypted:await encryptReference(reference,userId,store),productId:verified.productId,status:verified.status,purchasedAt:verified.purchasedAt,expiresAt:verified.expiresAt,lastVerifiedAt:now,legalEvidenceJson,legalAcceptedAt,createdAt:now});
+ return {active:live(verified.status,verified.expiresAt),status:verified.status,purchasedAt:verified.purchasedAt,expiresAt:verified.expiresAt};
 }
 
 export async function consumerEntitlement(userId:string){

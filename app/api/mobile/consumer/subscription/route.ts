@@ -2,6 +2,7 @@ import {currentUser} from "@/lib/session";
 import {claimSubscription,consumerEntitlement,type StoreName} from "@/lib/app-subscriptions";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
+import {consumerEvidence,currentConsumerDocuments,matchesConsumerEvidence} from "@/lib/consumer-legal";
 
 export async function GET(){
  const user=await currentUser();if(!user||user.accountType!=="consumer")return Response.json({error:"Nur für B2C-App-Konten."},{status:403});
@@ -14,9 +15,13 @@ export async function POST(request:Request){
   const bad=rejectCrossSiteMutation(request);if(bad)return bad;
   const user=await currentUser();if(!user||user.accountType!=="consumer")return Response.json({error:"Nur für B2C-App-Konten."},{status:403});
   const limit=await consumeRateLimit({scope:"consumer-subscription-claim",subject:JSON.stringify([user.id,requestNetwork(request)]),limit:10,windowMs:60*60_000});if(!limit.allowed)return rateLimited(limit.retryAfterSeconds);
-  const body=await request.json() as {store?:string;reference?:string};
+  const body=await request.json() as {store?:string;reference?:string;acceptedDocumentVersionIds?:unknown};
   if((body.store!=="google"&&body.store!=="apple")||typeof body.reference!=="string"||body.reference.length<5||body.reference.length>4096)return Response.json({error:"Ungültige Kaufdaten."},{status:400});
-  const result=await claimSubscription(user.id,body.store as StoreName,body.reference);
+  const documents=await currentConsumerDocuments();
+  if(!documents)return Response.json({error:"Die aktuellen B2C-Rechtstexte sind nicht vollständig veröffentlicht."},{status:503,headers:{"cache-control":"no-store"}});
+  const evidence=consumerEvidence(documents);
+  if(!matchesConsumerEvidence(evidence,body.acceptedDocumentVersionIds))return Response.json({error:"Bitte bestätigen Sie unmittelbar vor dem Store-Kauf die aktuellen B2C-AGB sowie Datenschutz- und Widerrufshinweise."},{status:428,headers:{"cache-control":"no-store"}});
+  const result=await claimSubscription(user.id,body.store as StoreName,body.reference,evidence,new Date());
   return Response.json(result,{headers:{"cache-control":"no-store"}});
  }catch(error){console.error("consumer_subscription_claim_failed",error);return Response.json({error:"Der Kauf konnte nicht beim Store bestätigt werden. Es wurde kein Zugang freigeschaltet."},{status:503,headers:{"cache-control":"no-store"}})}
 }

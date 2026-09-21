@@ -39,6 +39,10 @@ try {
     billingRecordsDeleted: 0,
     expiredTokensDeleted: 0,
   };
+  result.contractEvidenceDeleted += deleteLogged("contract_evidence", `DELETE FROM app_subscription_withdrawals WHERE id IN (
+    SELECT w.id FROM app_subscription_withdrawals w WHERE w.retain_until <= ?
+    AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.entity_type='contract_evidence' AND h.entity_id=w.id AND h.released_at IS NULL)
+    LIMIT 1000)`, now);
   // The event-linked operational invoice row must not outlive its independent
   // accounting record's retention deadline either.
   db.prepare(`DELETE FROM invoice_requests WHERE id IN (

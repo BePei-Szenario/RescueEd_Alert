@@ -251,7 +251,9 @@ class _ConsumerRegisterScreenState extends State<ConsumerRegisterScreen> {
                 ),
               const SizedBox(height: 18),
               FilledButton(
-                onPressed: busy || documents.length != 3 ? null : _submit,
+                onPressed: busy || documents.length != 3 || documentsFromCache
+                    ? null
+                    : _submit,
                 child: Text(
                   busy
                       ? 'Bitte warten …'

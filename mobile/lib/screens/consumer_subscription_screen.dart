@@ -1,12 +1,20 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../api.dart';
 import '../legal_documents.dart';
 
 const googleSubscriptionId = String.fromEnvironment('GOOGLE_SUBSCRIPTION_ID');
 const appleSubscriptionId = String.fromEnvironment('APPLE_SUBSCRIPTION_ID');
+const googlePackageName = String.fromEnvironment(
+  'GOOGLE_PLAY_PACKAGE_NAME',
+  defaultValue: 'de.rescueed.alert',
+);
 
 class ConsumerSubscriptionScreen extends StatefulWidget {
   const ConsumerSubscriptionScreen({
@@ -26,21 +34,33 @@ class ConsumerSubscriptionScreen extends StatefulWidget {
 class _ConsumerSubscriptionScreenState
     extends State<ConsumerSubscriptionScreen> {
   final store = InAppPurchase.instance;
+  final opened = <String>{};
+  final acknowledged = <String>{};
   StreamSubscription<List<PurchaseDetails>>? purchases;
   ProductDetails? product;
-  bool loading = true, busy = false, active = false;
+  List<Map<String, dynamic>> documents = [];
+  Map<String, dynamic>? withdrawal;
+  bool loading = true;
+  bool busy = false;
+  bool active = false;
+  bool documentsFromCache = false;
   String? error;
+
   String get productId =>
       Platform.isIOS ? appleSubscriptionId : googleSubscriptionId;
   String get storeName => Platform.isIOS ? 'apple' : 'google';
+  String get storeAccountId =>
+      Platform.isIOS && widget.userId.startsWith('usr_')
+      ? widget.userId.substring(4)
+      : widget.userId;
 
   @override
   void initState() {
     super.initState();
     purchases = store.purchaseStream.listen(
       _onPurchases,
-      onError: (Object e) {
-        if (mounted) setState(() => error = e.toString());
+      onError: (Object exception) {
+        if (mounted) setState(() => error = exception.toString());
       },
     );
     _load();
@@ -54,29 +74,62 @@ class _ConsumerSubscriptionScreenState
 
   Future<void> _load() async {
     try {
+      final legal = await LegalDocuments(widget.api).consumerDocuments();
+      documents = (legal.data['documents'] as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      documentsFromCache = legal.fromCache;
       final status = await widget.api.get('/api/mobile/consumer/subscription');
-      if (status['active'] == true) {
-        if (mounted) setState(() => active = true);
-        widget.onActive();
-        return;
+      active = status['active'] == true;
+      try {
+        withdrawal = await widget.api.get('/api/mobile/consumer/withdrawal');
+      } catch (_) {
+        withdrawal = null;
       }
-      if (productId.isEmpty)
-        throw StateError(
-          'Das Monatsabo ist im Store noch nicht eingerichtet. Bitte später erneut versuchen.',
-        );
-      if (!await store.isAvailable())
-        throw StateError(
-          'Der App Store ist auf diesem Gerät nicht erreichbar.',
-        );
-      final products = await store.queryProductDetails({productId});
-      if (products.error != null) throw StateError(products.error!.message);
-      if (products.productDetails.length != 1)
-        throw StateError('Das Monatsabo wurde im Store noch nicht gefunden.');
-      product = products.productDetails.single;
-    } catch (e) {
-      error = e.toString();
+      if (!active) {
+        if (productId.isEmpty) {
+          throw StateError(
+            'Das Monatsabo ist im Store noch nicht eingerichtet. Bitte später erneut versuchen.',
+          );
+        }
+        if (!await store.isAvailable()) {
+          throw StateError(
+            'Der App Store ist auf diesem Gerät nicht erreichbar.',
+          );
+        }
+        final products = await store.queryProductDetails({productId});
+        if (products.error != null) throw StateError(products.error!.message);
+        if (products.productDetails.length != 1) {
+          throw StateError('Das Monatsabo wurde im Store noch nicht gefunden.');
+        }
+        product = products.productDetails.single;
+      }
+    } catch (exception) {
+      error = exception.toString();
     }
     if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _showDocument(Map<String, dynamic> document) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${document['title']} · ${document['version']}'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: SelectableText(document['content'] as String),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) setState(() => opened.add(document['id'] as String));
   }
 
   Future<void> _onPurchases(List<PurchaseDetails> updates) async {
@@ -87,11 +140,12 @@ class _ConsumerSubscriptionScreenState
         continue;
       }
       if (purchase.status == PurchaseStatus.error) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             busy = false;
             error = purchase.error?.message ?? 'Kauf fehlgeschlagen.';
           });
+        }
         continue;
       }
       if (purchase.status == PurchaseStatus.canceled) {
@@ -99,43 +153,58 @@ class _ConsumerSubscriptionScreenState
         continue;
       }
       if (purchase.status != PurchaseStatus.purchased &&
-          purchase.status != PurchaseStatus.restored)
+          purchase.status != PurchaseStatus.restored) {
         continue;
+      }
       try {
         final reference = Platform.isIOS
             ? purchase.purchaseID
             : purchase.verificationData.serverVerificationData;
-        if (reference == null || reference.isEmpty)
+        if (reference == null || reference.isEmpty) {
           throw StateError('Store-Kaufreferenz fehlt.');
-        final result = await widget.api.post(
-          '/api/mobile/consumer/subscription',
-          {'store': storeName, 'reference': reference},
-        );
-        if (result['active'] != true)
+        }
+        final result = await widget.api
+            .post('/api/mobile/consumer/subscription', {
+              'store': storeName,
+              'reference': reference,
+              'acceptedDocumentVersionIds': acknowledged.toList(),
+            });
+        if (result['active'] != true) {
           throw StateError(
             'Der Store hat noch kein aktives Abo bestätigt. Bitte nach Zahlungsabschluss erneut versuchen.',
           );
-        if (purchase.pendingCompletePurchase)
+        }
+        if (purchase.pendingCompletePurchase) {
           await store.completePurchase(purchase);
-        if (mounted)
+        }
+        if (mounted) {
           setState(() {
             active = true;
             busy = false;
             error = null;
           });
+        }
         widget.onActive();
-      } catch (e) {
-        if (mounted)
+      } catch (exception) {
+        if (mounted) {
           setState(() {
             busy = false;
-            error = e.toString();
+            error = exception.toString();
           });
+        }
       }
     }
   }
 
   Future<void> _buy() async {
-    if (product == null) return;
+    if (product == null || documentsFromCache) return;
+    if (acknowledged.length != documents.length) {
+      setState(
+        () => error =
+            'Bitte alle aktuellen Rechtstexte öffnen und einzeln bestätigen.',
+      );
+      return;
+    }
     setState(() {
       busy = true;
       error = null;
@@ -144,73 +213,110 @@ class _ConsumerSubscriptionScreenState
       await store.buyNonConsumable(
         purchaseParam: PurchaseParam(
           productDetails: product!,
-          applicationUserName: widget.userId,
+          applicationUserName: storeAccountId,
         ),
       );
-    } catch (e) {
-      if (mounted)
+    } catch (exception) {
+      if (mounted) {
         setState(() {
           busy = false;
-          error = e.toString();
+          error = exception.toString();
         });
+      }
     }
   }
 
-  Future<void> _showLegal() async {
-    try {
-      final response = await LegalDocuments(widget.api).consumerDocuments();
-      final documents = response.data['documents'] as List;
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Rechtstexte zum App-Abo'),
-          content: SizedBox(
-            width: 520,
-            height: 420,
-            child: ListView(
-              children: [
-                if (response.fromCache)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text(
-                      'Offline gespeicherte Fassung – sie wird bei bestehender Verbindung automatisch aktualisiert.',
-                      style: TextStyle(color: Colors.orange),
-                    ),
-                  ),
-                ...documents.map((raw) {
-                  final document = Map<String, dynamic>.from(raw as Map);
-                  return ExpansionTile(
-                    title: Text(
-                      '${document['title']} · ${document['version']}',
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: SelectableText(document['content'] as String),
-                      ),
-                    ],
-                  );
-                }),
-              ],
-            ),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+  Future<void> _restore() async {
+    if (acknowledged.length != documents.length || documentsFromCache) {
+      setState(
+        () => error =
+            'Bitte zuerst die aktuellen Rechtstexte öffnen und bestätigen.',
       );
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
+      return;
+    }
+    await store.restorePurchases(applicationUserName: storeAccountId);
+  }
+
+  Future<void> _manageSubscription() async {
+    final uri = Platform.isIOS
+        ? Uri.parse('https://apps.apple.com/account/subscriptions')
+        : Uri.parse(
+            'https://play.google.com/store/account/subscriptions?package=$googlePackageName&sku=$googleSubscriptionId',
+          );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      setState(() => error = 'Die Aboverwaltung konnte nicht geöffnet werden.');
     }
   }
+
+  Future<void> _withdraw() async {
+    final details = withdrawal;
+    if (details == null || details['eligible'] != true) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.assignment_return_outlined, size: 42),
+        title: const Text('Vertrag widerrufen'),
+        content: Text(
+          'Du widerrufst das private RescueEd Alert Monatsabo (${details['productId']}) über ${details['store']}. Der Eingang wird an die E-Mail-Adresse deines RescueEd-Kontos bestätigt.\n\nEine Kündigung zukünftiger Verlängerungen ist davon getrennt und erfolgt in der Store-Aboverwaltung.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Widerruf bestätigen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.api.post('/api/mobile/consumer/withdrawal', {
+        'confirmed': true,
+      });
+      withdrawal = await widget.api.get('/api/mobile/consumer/withdrawal');
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(Icons.mark_email_read_outlined, size: 42),
+            title: const Text('Widerruf eingegangen'),
+            content: const Text(
+              'Dein Widerruf wurde mit Datum und Uhrzeit gespeichert. Eine Eingangsbestätigung wird per E-Mail versandt. Die Rückerstattung wird über den beim Kauf verwendeten Store bearbeitet.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (exception) {
+      if (mounted) setState(() => error = exception.toString());
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  String _legalAction(String key) => switch (key) {
+    'agb_b2c' => 'B2C-AGB akzeptieren',
+    'datenschutz' => 'Datenschutzerklärung gelesen',
+    'widerruf' => 'Widerrufsbelehrung gelesen',
+    _ => 'Dokument bestätigen',
+  };
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Monatsabo')),
+    appBar: AppBar(title: const Text('Abo verwalten')),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -232,7 +338,7 @@ class _ConsumerSubscriptionScreenState
         ),
         const SizedBox(height: 20),
         if (loading) const Center(child: CircularProgressIndicator()),
-        if (product != null) ...[
+        if (product != null && !active) ...[
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -248,31 +354,127 @@ class _ConsumerSubscriptionScreenState
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
-                  const Text('Der im Store angezeigte Preis ist maßgeblich.'),
+                  const Text(
+                    'Automatische monatliche Verlängerung bis zur Kündigung. Der im Store angezeigte Gesamtpreis ist maßgeblich.',
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          if (documentsFromCache)
+            const Text(
+              'Offline gespeicherte Rechtstexte. Ein Store-Kauf ist erst mit einer aktuellen Online-Fassung möglich.',
+              style: TextStyle(color: Colors.orange),
+            ),
+          ...documents.map((document) {
+            final id = document['id'] as String;
+            final key = document['documentKey'] as String;
+            return Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => _showDocument(document),
+                    child: Text(
+                      '${document['title']} öffnen · Version ${document['version']}',
+                    ),
+                  ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: acknowledged.contains(id),
+                  title: Text(_legalAction(key)),
+                  subtitle: key == 'widerruf'
+                      ? const Text(
+                          'Dies ist kein Verzicht auf das Widerrufsrecht.',
+                        )
+                      : null,
+                  onChanged: opened.contains(id)
+                      ? (selected) => setState(() {
+                          if (selected == true) {
+                            acknowledged.add(id);
+                          } else {
+                            acknowledged.remove(id);
+                          }
+                        })
+                      : null,
+                ),
+              ],
+            );
+          }),
+          const SizedBox(height: 14),
           FilledButton(
-            onPressed: busy ? _none : _buy,
+            onPressed:
+                busy ||
+                    documentsFromCache ||
+                    acknowledged.length != documents.length
+                ? null
+                : _buy,
             child: Text(
               busy ? 'Store wird geprüft …' : 'Monatsabo im Store abschließen',
             ),
           ),
           TextButton(
-            onPressed: busy
-                ? _none
-                : () => store.restorePurchases(
-                    applicationUserName: widget.userId,
-                  ),
+            onPressed: busy ? null : _restore,
             child: const Text('Kauf wiederherstellen'),
           ),
         ],
-        if (active)
-          const Text(
-            'Abo aktiv – neue Events können angelegt werden.',
-            textAlign: TextAlign.center,
+        if (active) ...[
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'App-Abo aktiv · Neue Events sind im Abo enthalten.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          OutlinedButton(
+            onPressed: _manageSubscription,
+            child: Text(
+              Platform.isIOS
+                  ? 'Abo im App Store verwalten'
+                  : 'Abo bei Google Play verwalten',
+            ),
+          ),
+        ],
+        if (!active && withdrawal?['subscription'] != null)
+          OutlinedButton(
+            onPressed: _manageSubscription,
+            child: Text(
+              Platform.isIOS
+                  ? 'Früheres Abo im App Store verwalten'
+                  : 'Früheres Abo bei Google Play verwalten',
+            ),
+          ),
+        if (withdrawal?['request'] != null)
+          Card(
+            color: const Color(0xfffff4e5),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Widerruf eingegangen am ${_dateTime(withdrawal!['request']['requestedAt'] as String)} · Status: ${_withdrawalStatus(withdrawal!['request']['status'] as String)}',
+              ),
+            ),
+          )
+        else if (withdrawal?['eligible'] == true)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: FilledButton.tonal(
+              onPressed: busy ? null : _withdraw,
+              child: const Text('Vertrag widerrufen'),
+            ),
+          ),
+        if (withdrawal?['eligibleUntil'] case final String eligibleUntil)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Elektronischer Widerruf in der App bis ${_dateTime(eligibleUntil)}. Gesetzliche Rechte bleiben unberührt.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
         if (error != null)
           Padding(
@@ -280,12 +482,8 @@ class _ConsumerSubscriptionScreenState
             child: Text(error!, style: const TextStyle(color: Colors.red)),
           ),
         const SizedBox(height: 18),
-        TextButton(
-          onPressed: _showLegal,
-          child: const Text('AGB, Datenschutz und Widerrufsbelehrung ansehen'),
-        ),
         const Text(
-          'Abrechnung und Verwaltung des Abos erfolgen über Google Play beziehungsweise den App Store.',
+          'Kündigung, Widerruf und Kontolöschung sind unterschiedliche Vorgänge. Abrechnung und Aboverwaltung erfolgen über Google Play beziehungsweise den App Store.',
           textAlign: TextAlign.center,
         ),
       ],
@@ -293,4 +491,15 @@ class _ConsumerSubscriptionScreenState
   );
 }
 
-void _none() {}
+String _dateTime(String value) => DateFormat(
+  'dd.MM.yyyy, HH:mm',
+  'de_DE',
+).format(DateTime.parse(value).toLocal());
+
+String _withdrawalStatus(String value) => switch (value) {
+  'received' => 'Eingegangen',
+  'processing' => 'In Bearbeitung',
+  'refunded' => 'Erstattet',
+  'rejected' => 'Abgeschlossen ohne Erstattung',
+  _ => value,
+};

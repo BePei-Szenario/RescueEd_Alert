@@ -12,6 +12,8 @@ import 'screens/owner_screen.dart';
 import 'screens/qr_flow.dart';
 import 'screens/consumer_register_screen.dart';
 import 'screens/event_code_login_screen.dart';
+import 'screens/organization_register_screen.dart';
+import 'screens/registration_choice_screen.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -188,6 +190,17 @@ class _RescueEdAppState extends State<RescueEdApp> {
               onBack: () => setState(() => mode = 'home'),
               onDone: () => setState(() => mode = 'consumerLogin'),
             ),
+            'organizationRegister' => OrganizationRegisterScreen(
+              api: api,
+              onBack: () => setState(() => mode = 'register'),
+              onDone: () => setState(() => mode = 'login'),
+            ),
+            'register' => RegistrationChoiceScreen(
+              onBack: () => setState(() => mode = 'home'),
+              onConsumer: () => setState(() => mode = 'consumerRegister'),
+              onOrganization: () =>
+                  setState(() => mode = 'organizationRegister'),
+            ),
             'eventCodeLogin' => EventCodeLoginScreen(
               api: api,
               onBack: () => setState(() => mode = 'home'),
@@ -216,8 +229,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
               onLogin: () => setState(() => mode = 'login'),
               onScan: _scan,
               onConsumerLogin: () => setState(() => mode = 'consumerLogin'),
-              onConsumerRegister: () =>
-                  setState(() => mode = 'consumerRegister'),
+              onRegister: () => setState(() => mode = 'register'),
               onCodeLogin: () => setState(() => mode = 'eventCodeLogin'),
             ),
           },

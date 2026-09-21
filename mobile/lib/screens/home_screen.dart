@@ -11,12 +11,12 @@ class HomeScreen extends StatelessWidget {
     required this.onLogin,
     required this.onScan,
     required this.onConsumerLogin,
-    required this.onConsumerRegister,
+    required this.onRegister,
     required this.onCodeLogin,
   });
   final ApiClient api;
   final VoidCallback onLogin, onScan;
-  final VoidCallback onConsumerLogin, onConsumerRegister;
+  final VoidCallback onConsumerLogin, onRegister;
   final VoidCallback onCodeLogin;
 
   Future<void> _showLegal(BuildContext context, String slug) async {
@@ -142,9 +142,9 @@ class HomeScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 56,
                     child: FilledButton.icon(
-                      onPressed: onConsumerRegister,
+                      onPressed: onRegister,
                       icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('Privatkonto registrieren'),
+                      label: const Text('Registrieren'),
                     ),
                   ),
                   const SizedBox(height: 12),
