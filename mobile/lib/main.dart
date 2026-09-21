@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'alarm_monitor.dart';
 import 'notifications.dart';
+import 'push_notifications.dart';
 import 'session_store.dart';
 import 'crash_reporting.dart';
 import 'screens/helper_screen.dart';
@@ -32,6 +33,7 @@ class RescueEdApp extends StatefulWidget {
 class _RescueEdAppState extends State<RescueEdApp> {
   final api = ApiClient(), store = SessionStore();
   final notifications = AlertNotifications();
+  late final PushNotifications pushNotifications;
   final navigatorKey = GlobalKey<NavigatorState>();
   bool loading = true;
   String mode = 'home';
@@ -39,6 +41,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
   @override
   void initState() {
     super.initState();
+    pushNotifications = PushNotifications(api, notifications);
     _restore();
   }
 
@@ -142,6 +145,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
   }
 
   Future<void> _endHelper() async {
+    await pushNotifications.unregisterHelper();
     await AlarmMonitor.stop();
     await notifications.clearAlarms();
     await store.clearHelperSession();
@@ -221,6 +225,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
             'helper' => HelperScreen(
               api: api,
               notifications: notifications,
+              pushNotifications: pushNotifications,
               eventId: helperEventId!,
               helperToken: helperToken!,
               onSessionEnded: _endHelper,

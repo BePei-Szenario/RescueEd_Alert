@@ -197,6 +197,20 @@
       "when": 1789981591146,
       "tag": "0027_bouncy_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1789985386549,
+      "tag": "0028_true_fabian_cortez",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1789989147984,
+      "tag": "0029_legal_cable",
+      "breakpoints": true
     }
   ]
 }

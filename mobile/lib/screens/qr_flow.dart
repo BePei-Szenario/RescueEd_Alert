@@ -23,7 +23,8 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
   );
   final firstName = TextEditingController(),
       lastName = TextEditingController(),
-      qualification = TextEditingController();
+      qualification = TextEditingController(),
+      phone = TextEditingController();
   Uri? qr;
   Map<String, dynamic>? info;
   bool busy = false, detected = false;
@@ -31,6 +32,10 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
   @override
   void dispose() {
     scanner.dispose();
+    firstName.dispose();
+    lastName.dispose();
+    qualification.dispose();
+    phone.dispose();
     super.dispose();
   }
 
@@ -95,6 +100,7 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
           'firstName': firstName.text.trim(),
           'lastName': lastName.text.trim(),
           'qualification': qualification.text.trim(),
+          'phone': phone.text.trim(),
         });
         final eventId = qr!.queryParameters['eventId']!,
             token = result['helperToken'] as String;
@@ -202,6 +208,15 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
                     controller: qualification,
                     decoration: const InputDecoration(
                       labelText: 'Qualifikation',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phone,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Telefonnummer (freiwillig)',
+                      hintText: '+49 171 1234567',
                     ),
                   ),
                 ] else

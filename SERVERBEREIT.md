@@ -35,7 +35,7 @@ Server-/Dienstprotokolle im systemd-Journal auf **14 Tage** begrenzen: `deploy/i
 
 Android und iOS verwenden standardmäßig `https://alert-rescueed.de`; der Release-Build muss diese HTTPS-Adresse behalten. Android-HTTP ist nur im Debug-Manifest erlaubt. Android-Release wird nicht mehr mit einem Debug-Schlüssel signiert; vor Store-Upload den eigenen Upload-Key lokal unter `mobile/android/key.properties` eintragen. iOS wird auf dem Mac mit dem eigenen Apple-Team signiert. Die Store-Produkt-IDs und Server-Secrets stehen in `docs/B2C-STORE-SETUP.md`.
 
-**Alarmgrenze:** Der Android-Foreground-Service pollt während eines aktiven Helferzugangs. Für zuverlässig zugestellte Alarme bei beendeter App beziehungsweise iOS-Hintergrundbetrieb sind FCM/APNs und echte Gerätetests noch erforderlich. Ein VPS mit 99,99-%-Infrastrukturverfügbarkeit garantiert weder Push-Zustellung noch Alarmwahrnehmung; ein unabhängiger Rückfall-Kommunikationsweg bleibt nötig.
+**Alarmgrenze:** FCM/APNs ist im Code als optionaler Push-Kanal vorbereitet; ohne produktive Firebase-/APNs-Konfiguration bleibt es deaktiviert. Der Android-Foreground-Service und die App-Abfrage bleiben Rückfallebenen. Einrichtung, Store-Freigaben und Gerätetests sind in [docs/PUSH-NOTIFICATIONS-SETUP.md](docs/PUSH-NOTIFICATIONS-SETUP.md) beschrieben. Ein VPS mit 99,99-%-Infrastrukturverfügbarkeit garantiert weder Push-Zustellung noch Alarmwahrnehmung; ein unabhängiger Rückfall-Kommunikationsweg bleibt nötig.
 
 ## Support und App-Diagnose
 

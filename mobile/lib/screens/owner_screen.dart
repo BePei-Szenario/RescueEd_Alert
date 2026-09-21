@@ -459,7 +459,11 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
     }
   }
 
-  Future<String?> ask(String title, String label) {
+  Future<String?> ask(
+    String title,
+    String label, {
+    TextInputType? keyboardType,
+  }) {
     final controller = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -468,6 +472,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
         content: TextField(
           controller: controller,
           autofocus: true,
+          keyboardType: keyboardType,
           decoration: InputDecoration(labelText: label),
         ),
         actions: [
@@ -531,11 +536,18 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
     if (last?.isEmpty != false) return;
     final qualification = await ask('Helfer anlegen', 'Qualifikation');
     if (qualification?.isEmpty != false) return;
+    final phone = await ask(
+      'Helfer anlegen',
+      'Telefonnummer (freiwillig)',
+      keyboardType: TextInputType.phone,
+    );
+    if (!mounted) return;
     await mutate(
       () => widget.api.post('/api/events/${widget.eventId}/helpers', {
         'firstName': first,
         'lastName': last,
         'qualification': qualification,
+        'phone': phone ?? '',
       }),
       'Helfer wurde angelegt.',
     );
@@ -975,7 +987,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text(
-                          '${h['qualification']} · gekommen ${_time(h['registeredAt'])}',
+                          _helperSubtitle(h),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1202,6 +1214,11 @@ String _time(dynamic value) {
 String _helperName(Map<String, dynamic> h) => h['lastName'] != null
     ? '${h['lastName']}, ${h['firstName'] ?? ''}'
     : h['name'] as String;
+
+String _helperSubtitle(Map<String, dynamic> h) {
+  final phone = (h['phone'] as String?)?.trim();
+  return '${h['qualification']}${phone?.isNotEmpty == true ? ' · Tel. $phone' : ''} · gekommen ${_time(h['registeredAt'])}';
+}
 
 String _eventAccessRoleLabel(dynamic role) => switch (role) {
   'helper_recorder' => 'Nur Helfererfassung',

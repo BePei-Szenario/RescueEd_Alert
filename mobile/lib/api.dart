@@ -64,10 +64,11 @@ class ApiClient {
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, dynamic> body = const {},
+    String? bearer,
   }) async => _decode(
     await http.delete(
       Uri.parse('$baseUrl$path'),
-      headers: _headers(),
+      headers: _headers(bearer: bearer),
       body: jsonEncode(body),
     ),
   );

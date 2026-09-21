@@ -22,7 +22,7 @@ export async function GET(request:Request){
    .orderBy(desc(alerts.createdAt)).limit(50);
   return Response.json({
    event:{id:helper.eventId,name:helper.eventName,eventDate:helper.eventDate,endDate:effectiveEventEndDate(helper.eventDate,helper.startTime,helper.endDate,helper.endTime),startTime:helper.startTime,endTime:helper.endTime,status:helper.eventStatus},
-   helper:{id:helper.helperId,name:helper.name,firstName:helper.firstName,lastName:helper.lastName,qualification:helper.qualification,registeredAt:helper.registeredAt},
+   helper:{id:helper.helperId,name:helper.name,firstName:helper.firstName,lastName:helper.lastName,qualification:helper.qualification,phone:helper.phone,registeredAt:helper.registeredAt},
    assignment:assignment||null,
    alerts:alarmRows.map(row=>({id:row.id,message:row.message,createdAt:row.createdAt,acknowledgedAt:row.acknowledgedAt}))
   },{headers:{"cache-control":"no-store"}});
