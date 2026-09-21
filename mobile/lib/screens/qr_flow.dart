@@ -3,6 +3,10 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../api.dart';
 import '../session_store.dart';
 
+const debugAttendanceQr = String.fromEnvironment(
+  'RESCUEED_DEBUG_ATTENDANCE_QR',
+);
+
 class HelperCredentials {
   const HelperCredentials(this.eventId, this.token, {this.ended = false});
   final String eventId, token;
@@ -29,6 +33,18 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
   Map<String, dynamic>? info;
   bool busy = false, detected = false;
   String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (debugAttendanceQr.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final parsed = Uri.tryParse(debugAttendanceQr);
+        if (parsed != null) _openQr(parsed);
+      });
+    }
+  }
+
   @override
   void dispose() {
     scanner.dispose();
@@ -44,8 +60,13 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
     final raw = capture.barcodes.firstOrNull?.rawValue;
     if (raw == null) return;
     final parsed = Uri.tryParse(raw);
-    if (parsed == null ||
-        parsed.path != '/event-attendance' ||
+    if (parsed == null) return;
+    await _openQr(parsed);
+  }
+
+  Future<void> _openQr(Uri parsed) async {
+    if (detected) return;
+    if (parsed.path != '/event-attendance' ||
         parsed.queryParameters['eventId'] == null ||
         parsed.queryParameters['code'] == null) {
       setState(() => error = 'Das ist kein gültiger RescueEd-Eventcode.');
