@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../api.dart';
 
 class EventCreateScreen extends StatefulWidget {
-  const EventCreateScreen({super.key, required this.api,this.consumer=false});
+  const EventCreateScreen({
+    super.key,
+    required this.api,
+    this.consumer = false,
+  });
   final ApiClient api;
   final bool consumer;
   @override
@@ -19,7 +24,11 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
       billingEmail = TextEditingController();
   DateTime? date, endDate;
   TimeOfDay? start, end;
-  bool loading = true, busy = false, complimentary = false, unlimitedEventDuration = false;
+  bool loading = true,
+      busy = false,
+      complimentary = false,
+      unlimitedEventDuration = false;
+  final Set<String> accessRoles = {};
   String? error;
   @override
   void initState() {
@@ -49,8 +58,7 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
   }
 
   int get helperCount => int.tryParse(helpers.text) ?? 0;
-  int get priceCents => complimentary
-      ||widget.consumer
+  int get priceCents => complimentary || widget.consumer
       ? 0
       : helperCount <= 20
       ? 599
@@ -60,7 +68,9 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
       context: context,
       firstDate: isEnd && date != null ? date! : DateTime.now(),
       lastDate: DateTime(9999),
-      initialDate: isEnd ? endDate ?? date ?? DateTime.now() : date ?? DateTime.now(),
+      initialDate: isEnd
+          ? endDate ?? date ?? DateTime.now()
+          : date ?? DateTime.now(),
     );
     if (value != null) {
       setState(() {
@@ -100,23 +110,38 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
         end == null ||
         helperCount < 1 ||
         helperCount > 1000 ||
-        (!widget.consumer&&recipient.text.trim().isEmpty) ||
-        (!widget.consumer&&street.text.trim().isEmpty) ||
-        (!widget.consumer&&postalCode.text.trim().isEmpty) ||
-        (!widget.consumer&&city.text.trim().isEmpty) ||
-        (!widget.consumer&&billingEmail.text.trim().isEmpty)) {
+        (!widget.consumer && recipient.text.trim().isEmpty) ||
+        (!widget.consumer && street.text.trim().isEmpty) ||
+        (!widget.consumer && postalCode.text.trim().isEmpty) ||
+        (!widget.consumer && city.text.trim().isEmpty) ||
+        (!widget.consumer && billingEmail.text.trim().isEmpty)) {
       setState(() => error = 'Bitte alle Pflichtfelder vollständig ausfüllen.');
       return;
     }
-    final beginsAt = DateTime.utc(date!.year, date!.month, date!.day, start!.hour, start!.minute);
-    final endsAt = DateTime.utc(endDate!.year, endDate!.month, endDate!.day, end!.hour, end!.minute);
+    final beginsAt = DateTime.utc(
+      date!.year,
+      date!.month,
+      date!.day,
+      start!.hour,
+      start!.minute,
+    );
+    final endsAt = DateTime.utc(
+      endDate!.year,
+      endDate!.month,
+      endDate!.day,
+      end!.hour,
+      end!.minute,
+    );
     final duration = endsAt.difference(beginsAt);
     if (duration <= Duration.zero) {
       setState(() => error = 'Das Eventende muss nach dem Beginn liegen.');
       return;
     }
     if (!unlimitedEventDuration && duration > const Duration(hours: 48)) {
-      setState(() => error = 'Events dürfen höchstens 48 Stunden dauern. Für längere Events ist die Dauernutzer-Freigabe nötig.');
+      setState(
+        () => error =
+            'Events dürfen höchstens 48 Stunden dauern. Für längere Events ist die Dauernutzer-Freigabe nötig.',
+      );
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -124,7 +149,9 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
       builder: (context) => AlertDialog(
         title: Text(name.text.trim()),
         content: Text(
-          widget.consumer?'Event jetzt im bestehenden Monatsabo anlegen?':complimentary
+          widget.consumer
+              ? 'Event jetzt im bestehenden Monatsabo anlegen?'
+              : complimentary
               ? 'Event jetzt kostenlos anlegen?'
               : 'Event anlegen und zahlungspflichtig für ${_money(priceCents)} bestellen?\n\nAbrechnung am Monatsende per Rechnung.',
         ),
@@ -134,12 +161,14 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
             child: const Text('Abbrechen'),
           ),
           FilledButton(
-            style: complimentary||widget.consumer
+            style: complimentary || widget.consumer
                 ? null
                 : FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
             child: Text(
-              widget.consumer?'Im Abo anlegen':complimentary
+              widget.consumer
+                  ? 'Im Abo anlegen'
+                  : complimentary
                   ? 'Kostenlos anlegen'
                   : 'Zahlungspflichtig bestellen',
             ),
@@ -160,6 +189,7 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
         'startTime': _time(start!),
         'endTime': _time(end!),
         'helperLimit': helperCount,
+        'accessRoles': accessRoles.toList(),
         'recipientName': recipient.text.trim(),
         'street': street.text.trim(),
         'postalCode': postalCode.text.trim(),
@@ -167,16 +197,63 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
         'billingEmail': billingEmail.text.trim(),
       });
       if (!mounted) return;
+      final eventAccessCodes = (result['eventAccessCodes'] as List? ?? [])
+          .whereType<Map>()
+          .map((item) => item.cast<String, dynamic>())
+          .toList();
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
           title: const Text('Vielen Dank für Ihre Bestellung!'),
-          content: Text(
-            widget.consumer?'Das Event wurde im aktiven Monatsabo angelegt.':result['complimentaryAccess'] == true
-                ? 'Das kostenfreie Event wurde angelegt.'
-                : 'Wir haben Ihre Bestellung erhalten. Eine Bestätigung mit allen Details wird an Ihre E-Mail-Adresse gesendet.',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.consumer
+                      ? 'Das Event wurde im aktiven Monatsabo angelegt.'
+                      : result['complimentaryAccess'] == true
+                      ? 'Das kostenfreie Event wurde angelegt.'
+                      : 'Wir haben Ihre Bestellung erhalten. Eine Bestätigung mit allen Details wird an Ihre E-Mail-Adresse gesendet.',
+                ),
+                if (eventAccessCodes.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Event-Codes – jetzt sicher weitergeben',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Die Codes gelten nur für dieses Event und enden automatisch mit dem Event.',
+                  ),
+                  const SizedBox(height: 10),
+                  ...eventAccessCodes.map(
+                    (item) => Card(
+                      child: ListTile(
+                        title: Text(_accessRoleLabel(item['role'])),
+                        subtitle: SelectableText(
+                          item['code']?.toString() ?? '',
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Code kopieren',
+                          onPressed: () async {
+                            await Clipboard.setData(
+                              ClipboardData(
+                                text: item['code']?.toString() ?? '',
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.copy_outlined),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
           actions: [
             FilledButton(
@@ -224,7 +301,9 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => pickTime(true),
-                      child: Text(start == null ? 'Beginn-Uhrzeit' : _time(start!)),
+                      child: Text(
+                        start == null ? 'Beginn-Uhrzeit' : _time(start!),
+                      ),
                     ),
                   ),
                 ],
@@ -234,9 +313,15 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: date == null ? null : () => pickDate(isEnd: true),
+                      onPressed: date == null
+                          ? null
+                          : () => pickDate(isEnd: true),
                       icon: const Icon(Icons.calendar_month),
-                      label: Text(endDate == null ? 'Ende-Datum' : '${endDate!.day.toString().padLeft(2, '0')}.${endDate!.month.toString().padLeft(2, '0')}.${endDate!.year}'),
+                      label: Text(
+                        endDate == null
+                            ? 'Ende-Datum'
+                            : '${endDate!.day.toString().padLeft(2, '0')}.${endDate!.month.toString().padLeft(2, '0')}.${endDate!.year}',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -250,7 +335,11 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(unlimitedEventDuration ? 'Dauernutzer: Events ohne Zeitlimit möglich.' : 'Maximal 48 Stunden pro Event.'),
+                child: Text(
+                  unlimitedEventDuration
+                      ? 'Dauernutzer: Events ohne Zeitlimit möglich.'
+                      : 'Maximal 48 Stunden pro Event.',
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -262,59 +351,99 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              if(!widget.consumer)Text(
-                'Rechnungsdaten',
+              Text(
+                'Event-Zugänge mit Code',
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
-              if(!widget.consumer)const SizedBox(height: 10),
-              if(!widget.consumer)...[
-              TextField(
-                controller: recipient,
-                decoration: const InputDecoration(
-                  labelText: 'Organisation / Rechnungsempfänger',
-                ),
+              const SizedBox(height: 4),
+              const Text(
+                'Optional für dieses Event erstellen. Jeder Zugang zeigt nur die freigegebenen Funktionen.',
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: street,
-                decoration: const InputDecoration(
-                  labelText: 'Straße und Hausnummer',
-                ),
+              const SizedBox(height: 8),
+              _AccessRoleOption(
+                title: 'Nur Helfererfassung',
+                description:
+                    'Helfer anzeigen, anlegen und ausbuchen – ohne Einteilung oder Alarmierung.',
+                value: accessRoles.contains('helper_recorder'),
+                onChanged: (selected) => setState(() {
+                  _setAccessRole('helper_recorder', selected);
+                }),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: postalCode,
-                      decoration: const InputDecoration(labelText: 'PLZ'),
-                    ),
+              _AccessRoleOption(
+                title: 'Nur Alarmierungsplattform',
+                description:
+                    'Vorhandene Einsatzmittel einteilen, alarmieren und freimelden.',
+                value: accessRoles.contains('alarm_operator'),
+                onChanged: (selected) => setState(() {
+                  _setAccessRole('alarm_operator', selected);
+                }),
+              ),
+              _AccessRoleOption(
+                title: 'Alarmierung mit Verwaltung',
+                description:
+                    'Helfer und Einsatzmittel anlegen, einteilen, alarmieren und freimelden.',
+                value: accessRoles.contains('event_manager'),
+                onChanged: (selected) => setState(() {
+                  _setAccessRole('event_manager', selected);
+                }),
+              ),
+              const SizedBox(height: 20),
+              if (!widget.consumer)
+                Text(
+                  'Rechnungsdaten',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              if (!widget.consumer) const SizedBox(height: 10),
+              if (!widget.consumer) ...[
+                TextField(
+                  controller: recipient,
+                  decoration: const InputDecoration(
+                    labelText: 'Organisation / Rechnungsempfänger',
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: city,
-                      decoration: const InputDecoration(labelText: 'Ort'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: billingEmail,
-                readOnly: true,
-                decoration: const InputDecoration(
-                  labelText: 'Rechnungs-E-Mail',
-                  prefixIcon: Icon(Icons.lock_outline),
                 ),
-              ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: street,
+                  decoration: const InputDecoration(
+                    labelText: 'Straße und Hausnummer',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: postalCode,
+                        decoration: const InputDecoration(labelText: 'PLZ'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: city,
+                        decoration: const InputDecoration(labelText: 'Ort'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: billingEmail,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Rechnungs-E-Mail',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
               ],
               const SizedBox(height: 20),
               Card(
-                color: complimentary||widget.consumer
+                color: complimentary || widget.consumer
                     ? const Color(0xffe8f7ef)
                     : const Color(0xffffecee),
                 child: Padding(
@@ -323,7 +452,9 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          widget.consumer?'Im Monatsabo enthalten':complimentary
+                          widget.consumer
+                              ? 'Im Monatsabo enthalten'
+                              : complimentary
                               ? 'Kostenlose Nutzung freigeschaltet'
                               : helperCount <= 20
                               ? 'Event bis 20 Helfer'
@@ -336,7 +467,9 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
-                          color: complimentary||widget.consumer ? Colors.green : Colors.red,
+                          color: complimentary || widget.consumer
+                              ? Colors.green
+                              : Colors.red,
                         ),
                       ),
                     ],
@@ -355,14 +488,16 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
               SizedBox(
                 height: 56,
                 child: FilledButton(
-                  style: complimentary||widget.consumer
+                  style: complimentary || widget.consumer
                       ? null
                       : FilledButton.styleFrom(backgroundColor: Colors.red),
                   onPressed: busy ? null : submit,
                   child: Text(
                     busy
                         ? 'Wird gespeichert …'
-                        : widget.consumer?'Event im Abo anlegen':complimentary
+                        : widget.consumer
+                        ? 'Event im Abo anlegen'
+                        : complimentary
                         ? 'Event kostenlos anlegen'
                         : 'Zahlungspflichtig erstellen · ${_money(priceCents)}',
                   ),
@@ -370,6 +505,38 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
               ),
             ],
           ),
+  );
+
+  void _setAccessRole(String role, bool selected) {
+    if (selected) {
+      accessRoles.add(role);
+    } else {
+      accessRoles.remove(role);
+    }
+  }
+}
+
+class _AccessRoleOption extends StatelessWidget {
+  const _AccessRoleOption({
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => CheckboxListTile(
+    contentPadding: EdgeInsets.zero,
+    controlAffinity: ListTileControlAffinity.leading,
+    value: value,
+    onChanged: (selected) => onChanged(selected ?? false),
+    title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+    subtitle: Text(description),
   );
 }
 
@@ -379,3 +546,10 @@ String _time(TimeOfDay value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 String _money(int cents) =>
     '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
+
+String _accessRoleLabel(dynamic role) => switch (role) {
+  'helper_recorder' => 'Nur Helfererfassung',
+  'alarm_operator' => 'Nur Alarmierungsplattform',
+  'event_manager' => 'Alarmierung mit Verwaltung',
+  _ => 'Event-Zugang',
+};

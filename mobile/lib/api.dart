@@ -19,12 +19,13 @@ class ApiClient {
     : baseUrl = (baseUrl ?? defaultApiUrl).replaceAll(RegExp(r'/$'), '');
   final String baseUrl;
   String? sessionCookie;
+  String sessionCookieName = 'rescueed_session';
 
   Map<String, String> _headers({String? bearer}) => {
     'accept': 'application/json',
     'content-type': 'application/json',
     'x-rescueed-client': 'mobile',
-    if (sessionCookie != null) 'cookie': 'rescueed_session=$sessionCookie',
+    if (sessionCookie != null) 'cookie': '$sessionCookieName=$sessionCookie',
     if (bearer != null) 'authorization': 'Bearer $bearer',
   };
 
@@ -71,11 +72,15 @@ class ApiClient {
     ),
   );
 
-  Future<LoginChallenge> login(String email, String password, {bool consumer=false}) async {
+  Future<LoginChallenge> login(
+    String email,
+    String password, {
+    bool consumer = false,
+  }) async {
     final data = await post('/api/auth/login', {
       'email': email,
       'password': password,
-      'area': consumer?'mobile_consumer':'customer',
+      'area': consumer ? 'mobile_consumer' : 'customer',
     });
     return LoginChallenge(
       data['challenge'] as String,
@@ -93,8 +98,33 @@ class ApiClient {
     final match = cookie == null
         ? null
         : RegExp(r'rescueed_session=([^;]+)').firstMatch(cookie);
-    if (match != null) sessionCookie = match.group(1);
+    if (match != null) {
+      sessionCookie = match.group(1);
+      sessionCookieName = 'rescueed_session';
+    }
     return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> loginWithEventCode(String code) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/event-code'),
+      headers: _headers(),
+      body: jsonEncode({'code': code}),
+    );
+    final cookie = response.headers['set-cookie'];
+    final match = cookie == null
+        ? null
+        : RegExp(r'rescueed_event_session=([^;]+)').firstMatch(cookie);
+    final data = _decode(response);
+    if (match == null) {
+      throw ApiException(
+        'Der Event-Zugang konnte nicht gespeichert werden.',
+        500,
+      );
+    }
+    sessionCookie = match.group(1);
+    sessionCookieName = 'rescueed_event_session';
+    return data;
   }
 
   Future<Map<String, dynamic>> attendanceInfo(Uri qr) async {

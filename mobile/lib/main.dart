@@ -11,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/owner_screen.dart';
 import 'screens/qr_flow.dart';
 import 'screens/consumer_register_screen.dart';
+import 'screens/event_code_login_screen.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -32,7 +33,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
   final navigatorKey = GlobalKey<NavigatorState>();
   bool loading = true;
   String mode = 'home';
-  String? helperEventId, helperToken;
+  String? helperEventId, helperToken, eventAccessEventId;
   @override
   void initState() {
     super.initState();
@@ -46,12 +47,19 @@ class _RescueEdAppState extends State<RescueEdApp> {
       // The helper view reports whether Android alarm monitoring can start.
     }
     api.sessionCookie = await store.readOwnerSession();
+    api.sessionCookieName = await store.readOwnerSessionCookieName();
     if (api.sessionCookie != null) {
       try {
-        final profile=await api.get('/api/auth/me');
+        final profile = await api.get('/api/auth/me');
         if (mounted) {
           setState(() {
-            mode = profile['accountType']=='consumer'?'consumer':'owner';
+            final access = profile['eventAccess'] as Map<String, dynamic>?;
+            eventAccessEventId = access?['eventId'] as String?;
+            mode = eventAccessEventId != null
+                ? 'eventAccess'
+                : profile['accountType'] == 'consumer'
+                ? 'consumer'
+                : 'owner';
             loading = false;
           });
         }
@@ -88,8 +96,18 @@ class _RescueEdAppState extends State<RescueEdApp> {
   Future<void> _ownerAuthenticated() async {
     if (api.sessionCookie == null) return;
     await store.saveOwnerSession(api.sessionCookie!);
-    final profile=await api.get('/api/auth/me');
-    if (mounted) setState(() => mode = profile['accountType']=='consumer'?'consumer':'owner');
+    await store.saveOwnerSessionCookieName(api.sessionCookieName);
+    final profile = await api.get('/api/auth/me');
+    if (mounted)
+      setState(() {
+        final access = profile['eventAccess'] as Map<String, dynamic>?;
+        eventAccessEventId = access?['eventId'] as String?;
+        mode = eventAccessEventId != null
+            ? 'eventAccess'
+            : profile['accountType'] == 'consumer'
+            ? 'consumer'
+            : 'owner';
+      });
   }
 
   Future<void> _ownerLogout() async {
@@ -97,6 +115,8 @@ class _RescueEdAppState extends State<RescueEdApp> {
       await api.post('/api/auth/logout', {});
     } catch (_) {}
     api.sessionCookie = null;
+    api.sessionCookieName = 'rescueed_session';
+    eventAccessEventId = null;
     await store.clearOwnerSession();
     if (mounted) setState(() => mode = 'home');
   }
@@ -157,10 +177,33 @@ class _RescueEdAppState extends State<RescueEdApp> {
               onBack: () => setState(() => mode = 'home'),
               onAuthenticated: _ownerAuthenticated,
             ),
-            'consumerLogin' => LoginScreen(api:api,consumer:true,onBack:()=>setState(()=>mode='home'),onAuthenticated:_ownerAuthenticated),
-            'consumerRegister' => ConsumerRegisterScreen(api:api,onBack:()=>setState(()=>mode='home'),onDone:()=>setState(()=>mode='consumerLogin')),
+            'consumerLogin' => LoginScreen(
+              api: api,
+              consumer: true,
+              onBack: () => setState(() => mode = 'home'),
+              onAuthenticated: _ownerAuthenticated,
+            ),
+            'consumerRegister' => ConsumerRegisterScreen(
+              api: api,
+              onBack: () => setState(() => mode = 'home'),
+              onDone: () => setState(() => mode = 'consumerLogin'),
+            ),
+            'eventCodeLogin' => EventCodeLoginScreen(
+              api: api,
+              onBack: () => setState(() => mode = 'home'),
+              onAuthenticated: _ownerAuthenticated,
+            ),
             'owner' => OwnerScreen(api: api, onLogout: _ownerLogout),
-            'consumer' => OwnerScreen(api:api,onLogout:_ownerLogout,consumer:true),
+            'consumer' => OwnerScreen(
+              api: api,
+              onLogout: _ownerLogout,
+              consumer: true,
+            ),
+            'eventAccess' => OwnerEventScreen(
+              api: api,
+              eventId: eventAccessEventId!,
+              onLogout: _ownerLogout,
+            ),
             'helper' => HelperScreen(
               api: api,
               notifications: notifications,
@@ -172,8 +215,10 @@ class _RescueEdAppState extends State<RescueEdApp> {
               api: api,
               onLogin: () => setState(() => mode = 'login'),
               onScan: _scan,
-              onConsumerLogin:()=>setState(()=>mode='consumerLogin'),
-              onConsumerRegister:()=>setState(()=>mode='consumerRegister'),
+              onConsumerLogin: () => setState(() => mode = 'consumerLogin'),
+              onConsumerRegister: () =>
+                  setState(() => mode = 'consumerRegister'),
+              onCodeLogin: () => setState(() => mode = 'eventCodeLogin'),
             ),
           },
   );

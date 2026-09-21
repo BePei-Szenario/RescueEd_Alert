@@ -1,0 +1,69 @@
+.dashboard-tabs {
+  display: flex;
+  gap: 0.55rem;
+  width: min(1450px, calc(100% - 2.5rem));
+  margin: 1.25rem auto 0;
+  border-bottom: 1px solid #dce5ef;
+}
+
+.dashboard-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 0.7rem 0.7rem 0 0;
+  padding: 0.75rem 1rem;
+  color: #52657d;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.dashboard-tabs button.active {
+  border-color: #dce5ef;
+  background: #fff;
+  color: #1769e0;
+}
+
+.dashboard-tabs svg { width: 1rem; }
+
+.dashboard-pages {
+  width: min(1450px, calc(100% - 2.5rem));
+  margin: auto;
+  padding: 1.25rem 0;
+}
+
+.helper-group + .helper-group { border-top: 0.75rem solid #f3f6fa; }
+.helper-group > h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #eaf2fd;
+  padding: 0.65rem 1.2rem;
+  color: #155ebd;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.helper-group > h3 span {
+  min-width: 1.55rem;
+  border-radius: 99px;
+  background: #fff;
+  padding: 0.15rem 0.45rem;
+  text-align: center;
+}
+
+.dashboard-pages .resources-card .resource-grid {
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+@media (max-width: 580px) {
+  .dashboard-tabs, .dashboard-pages { width: min(100% - 1.25rem, 1450px); }
+  .dashboard-tabs button { flex: 1; justify-content: center; padding-inline: 0.55rem; }
+}
+
+@media print {
+  .dashboard-tabs { display: none !important; }
+  .dashboard-pages { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  .helper-group + .helper-group { border-top-width: 4mm; }
+}

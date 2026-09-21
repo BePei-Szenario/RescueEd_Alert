@@ -53,6 +53,7 @@ try {
   result.expiredTokensDeleted += db.prepare("DELETE FROM pending_registrations WHERE expires_at <= ?").run(now).changes;
   result.expiredTokensDeleted += db.prepare("DELETE FROM pending_consumer_registrations WHERE expires_at <= ?").run(now).changes;
   result.expiredTokensDeleted += db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now).changes;
+  result.expiredTokensDeleted += db.prepare("DELETE FROM event_access_sessions WHERE expires_at <= ?").run(now).changes;
   db.prepare("UPDATE email_outbox SET payload_json='{}', status='failed' WHERE sensitive_expires_at IS NOT NULL AND sensitive_expires_at <= ? AND status <> 'sent' AND payload_json <> '{}'").run(now);
   db.prepare("DELETE FROM retention_actions WHERE retain_until <= ?").run(now);
   db.prepare(`INSERT INTO retention_runs (id,created_at,finished_at,crash_reports_deleted,rate_limits_deleted,support_tickets_deleted,contract_evidence_deleted,billing_records_deleted,privacy_requests_deleted,expired_tokens_deleted)

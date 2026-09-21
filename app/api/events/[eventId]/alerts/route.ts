@@ -1,7 +1,7 @@
 import {and,asc,eq,inArray,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
 import {alertAssignments,alertRecipients,alerts,assignments,helpers} from "@/db/schema";
-import {ownedEvent} from "@/lib/event-access";
+import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {id} from "@/lib/security";
 
@@ -13,13 +13,13 @@ async function alarmLog(eventId:string){
 }
 
 export async function GET(_request:Request,{params}:{params:Promise<{eventId:string}>}){
- try{const {eventId}=await params,{user,event}=await ownedEvent(eventId);if(!user)return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});return Response.json({alerts:await alarmLog(event.id)},{headers:{"cache-control":"no-store"}})}catch(error){console.error("alert_log_failed",error);return Response.json({error:"Alarmprotokoll konnte nicht geladen werden."},{status:500})}
+ try{const {eventId}=await params,authorization=await ownedEvent(eventId),{event,permissions}=authorization;if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});if(!permissions?.alarm)return Response.json({error:"Dieser Event-Zugang darf das Alarmprotokoll nicht öffnen."},{status:403});return Response.json({alerts:await alarmLog(event.id)},{headers:{"cache-control":"no-store"}})}catch(error){console.error("alert_log_failed",error);return Response.json({error:"Alarmprotokoll konnte nicht geladen werden."},{status:500})}
 }
 
 export async function POST(request:Request,{params}:{params:Promise<{eventId:string}>}){
  const bad=rejectCrossSiteMutation(request);if(bad)return bad;
  try{
-  const {eventId}=await params,{user,event}=await ownedEvent(eventId);if(!user)return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
+  const {eventId}=await params,authorization=await ownedEvent(eventId),{user,event,access,permissions}=authorization;if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});if(!permissions?.alarm)return Response.json({error:"Dieser Event-Zugang darf nicht alarmieren."},{status:403});
   const body=await request.json() as {assignmentIds?:unknown;message?:unknown},assignmentIds=Array.isArray(body.assignmentIds)?[...new Set(body.assignmentIds.filter((value):value is string=>typeof value==="string"&&value.length>0))]:[],message=typeof body.message==="string"?body.message.trim():"";
   if(!assignmentIds.length||assignmentIds.length>50)return Response.json({error:"Bitte mindestens ein Sanitätsmittel auswählen."},{status:400});
   if(message.length>150)return Response.json({error:"Die Alarmmeldung darf höchstens 150 Zeichen enthalten."},{status:400});
@@ -29,7 +29,7 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   if(units.some(unit=>!recipients.some(recipient=>recipient.assignmentId===unit.id)))return Response.json({error:"Jedes Sanitätsmittel benötigt mindestens einen per QR-Code eingecheckten Helfer für eine Alarmierung."},{status:400});
   const alertId=id("alt"),now=new Date();
   await db.batch([
-   db.insert(alerts).values({id:alertId,eventId:event.id,createdByUserId:user.id,message:message||null,createdAt:now}),
+   db.insert(alerts).values({id:alertId,eventId:event.id,createdByUserId:user?.id||event.ownerUserId,createdByEventAccessId:access?.id||null,message:message||null,createdAt:now}),
    ...units.map(unit=>db.insert(alertAssignments).values({id:id("ala"),alertId,assignmentId:unit.id})),
    ...recipients.map(recipient=>db.insert(alertRecipients).values({id:id("alr"),alertId,helperId:recipient.id,sentAt:now})),
    ...units.map(unit=>db.update(assignments).set({operationalStatus:"deployed",deployedAt:now,clearedAt:null}).where(and(eq(assignments.id,unit.id),eq(assignments.eventId,event.id))))

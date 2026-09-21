@@ -37,7 +37,9 @@ class _PasswordFieldState extends State<PasswordField> {
       suffixIcon: IconButton(
         tooltip: visible ? 'Passwort verbergen' : 'Passwort anzeigen',
         onPressed: () => setState(() => visible = !visible),
-        icon: Icon(visible ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+        icon: Icon(
+          visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+        ),
       ),
     ),
   );

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -12,7 +13,12 @@ import 'legal_reconfirmation_screen.dart';
 import '../widgets/password_field.dart';
 
 class OwnerScreen extends StatefulWidget {
-  const OwnerScreen({super.key, required this.api, required this.onLogout,this.consumer=false});
+  const OwnerScreen({
+    super.key,
+    required this.api,
+    required this.onLogout,
+    this.consumer = false,
+  });
   final ApiClient api;
   final Future<void> Function() onLogout;
   final bool consumer;
@@ -24,8 +30,8 @@ class _OwnerScreenState extends State<OwnerScreen> {
   List<dynamic> events = [];
   bool loading = true;
   String? error;
-  bool subscriptionActive=false;
-  bool legalUpdateRequired=false;
+  bool subscriptionActive = false;
+  bool legalUpdateRequired = false;
   String? consumerUserId;
   @override
   void initState() {
@@ -36,12 +42,14 @@ class _OwnerScreenState extends State<OwnerScreen> {
   Future<void> load() async {
     try {
       final data = await widget.api.get('/api/events');
-      final profile=await widget.api.get('/api/auth/me');
-      legalUpdateRequired=profile['legalUpdateRequired']==true;
-      if(widget.consumer){
-        consumerUserId=profile['id'] as String?;
-        final status=await widget.api.get('/api/mobile/consumer/subscription');
-        subscriptionActive=status['active']==true;
+      final profile = await widget.api.get('/api/auth/me');
+      legalUpdateRequired = profile['legalUpdateRequired'] == true;
+      if (widget.consumer) {
+        consumerUserId = profile['id'] as String?;
+        final status = await widget.api.get(
+          '/api/mobile/consumer/subscription',
+        );
+        subscriptionActive = status['active'] == true;
       }
       if (mounted) {
         setState(() {
@@ -53,7 +61,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          if(widget.consumer)subscriptionActive=false;
+          if (widget.consumer) subscriptionActive = false;
           error = e.toString();
           loading = false;
         });
@@ -61,50 +69,132 @@ class _OwnerScreenState extends State<OwnerScreen> {
     }
   }
 
-  Future<void> _createEvent()async{
-    if(legalUpdateRequired){
-      if(!mounted)return;
-      await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>LegalReconfirmationScreen(api:widget.api)));
+  Future<void> _createEvent() async {
+    if (legalUpdateRequired) {
+      if (!mounted) return;
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LegalReconfirmationScreen(api: widget.api),
+        ),
+      );
       await load();
-      if(legalUpdateRequired)return;
+      if (legalUpdateRequired) return;
     }
-    if(widget.consumer){
-      try{
-        final status=await widget.api.get('/api/mobile/consumer/subscription');
-        subscriptionActive=status['active']==true;
-      }catch(_){subscriptionActive=false;}
-      if(!subscriptionActive){
-        if(!mounted)return;
-        if(consumerUserId==null){await load();if(consumerUserId==null||!mounted)return;}
-        await Navigator.push(context,MaterialPageRoute(builder:(_)=>ConsumerSubscriptionScreen(api:widget.api,userId:consumerUserId!,onActive:(){if(mounted)Navigator.pop(context);})));await load();return;
+    if (widget.consumer) {
+      try {
+        final status = await widget.api.get(
+          '/api/mobile/consumer/subscription',
+        );
+        subscriptionActive = status['active'] == true;
+      } catch (_) {
+        subscriptionActive = false;
+      }
+      if (!subscriptionActive) {
+        if (!mounted) return;
+        if (consumerUserId == null) {
+          await load();
+          if (consumerUserId == null || !mounted) return;
+        }
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ConsumerSubscriptionScreen(
+              api: widget.api,
+              userId: consumerUserId!,
+              onActive: () {
+                if (mounted) Navigator.pop(context);
+              },
+            ),
+          ),
+        );
+        await load();
+        return;
       }
     }
-    if(!mounted)return;
-    await Navigator.push(context,MaterialPageRoute(builder:(_)=>EventCreateScreen(api:widget.api,consumer:widget.consumer)));
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            EventCreateScreen(api: widget.api, consumer: widget.consumer),
+      ),
+    );
     await load();
   }
 
   Future<void> _deleteConsumerAccount() async {
-    final password=TextEditingController();
-    bool confirmed=false;
-    final submit=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialog)=>AlertDialog(
-      title:const Text('Privatkonto löschen'),
-      content:SizedBox(width:440,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        const Text('Dein App-Konto und der Zugang zu deinen Events werden gelöscht. Der Nachweis zu akzeptierten Rechtstexten wird im Löscharchiv aufbewahrt.'),
-        const SizedBox(height:12),
-        const Text('Wichtig: Die Kontolöschung kündigt dein Google-Play- oder App-Store-Abo nicht. Kündige es zuerst in den Abo-Einstellungen des Stores, damit keine weitere Abbuchung erfolgt.'),
-        const SizedBox(height:12),
-        PasswordField(controller:password,labelText:'Passwort zur Bestätigung',onChanged:(_)=>setDialog((){})),
-        CheckboxListTile(value:confirmed,onChanged:(value)=>setDialog(()=>confirmed=value==true),title:const Text('Ich möchte mein App-Konto endgültig löschen.')),
-      ]))),
-      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Abbrechen')),FilledButton(onPressed:confirmed&&password.text.isNotEmpty?()=>Navigator.pop(dialogContext,true):null,child:const Text('Konto löschen'))],
-    )));
-    if(submit!=true){password.dispose();return;}
-    try{
-      await widget.api.post('/api/account/delete',{'password':password.text,'confirmed':true});
+    final password = TextEditingController();
+    bool confirmed = false;
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialog) => AlertDialog(
+          title: const Text('Privatkonto löschen'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Dein App-Konto und der Zugang zu deinen Events werden gelöscht. Der Nachweis zu akzeptierten Rechtstexten wird im Löscharchiv aufbewahrt.',
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Wichtig: Die Kontolöschung kündigt dein Google-Play- oder App-Store-Abo nicht. Kündige es zuerst in den Abo-Einstellungen des Stores, damit keine weitere Abbuchung erfolgt.',
+                  ),
+                  const SizedBox(height: 12),
+                  PasswordField(
+                    controller: password,
+                    labelText: 'Passwort zur Bestätigung',
+                    onChanged: (_) => setDialog(() {}),
+                  ),
+                  CheckboxListTile(
+                    value: confirmed,
+                    onChanged: (value) =>
+                        setDialog(() => confirmed = value == true),
+                    title: const Text(
+                      'Ich möchte mein App-Konto endgültig löschen.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: confirmed && password.text.isNotEmpty
+                  ? () => Navigator.pop(dialogContext, true)
+                  : null,
+              child: const Text('Konto löschen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (submit != true) {
+      password.dispose();
+      return;
+    }
+    try {
+      await widget.api.post('/api/account/delete', {
+        'password': password.text,
+        'confirmed': true,
+      });
       password.dispose();
       await widget.onLogout();
-    }catch(e){password.dispose();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Kontolöschung fehlgeschlagen: $e')));}
+    } catch (e) {
+      password.dispose();
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kontolöschung fehlgeschlagen: $e')),
+        );
+    }
   }
 
   @override
@@ -116,7 +206,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
           tooltip: 'Einstellungen',
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => SettingsScreen(api:widget.api)),
+            MaterialPageRoute(builder: (_) => SettingsScreen(api: widget.api)),
           ),
           icon: const Icon(Icons.settings_outlined),
         ),
@@ -150,19 +240,73 @@ class _OwnerScreenState extends State<OwnerScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'Alarmieren, Helfer einteilen und Sanitätsmittel verwalten.',
+                  'Alarmieren, Helfer einteilen und Einsatzmittel verwalten.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 20),
-                if(legalUpdateRequired)Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                  const Text('Aktuelle Rechtstexte bestätigen',style:TextStyle(fontWeight:FontWeight.bold)),
-                  const SizedBox(height:8),
-                  const Text('Neue Events sind bis zur Bestätigung gesperrt. Laufende Events bleiben erreichbar.'),
-                  const SizedBox(height:10),
-                  FilledButton(onPressed:()async{await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>LegalReconfirmationScreen(api:widget.api)));await load();},child:const Text('Fassungen ansehen')),
-                ]))),
-                if(widget.consumer&&!subscriptionActive)Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(children:[const Text('Kein aktives App-Abo bestätigt. Bereits gestartete Events bleiben nutzbar; neue Events sind gesperrt.'),const SizedBox(height:10),FilledButton(onPressed:_createEvent,child:const Text('Monatsabo prüfen oder abschließen'))]))),
-                if(widget.consumer&&subscriptionActive)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('App-Abo aktiv · Neue Events sind im Abo enthalten.'))),
+                if (legalUpdateRequired)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Aktuelle Rechtstexte bestätigen',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Neue Events sind bis zur Bestätigung gesperrt. Laufende Events bleiben erreichbar.',
+                          ),
+                          const SizedBox(height: 10),
+                          FilledButton(
+                            onPressed: () async {
+                              await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => LegalReconfirmationScreen(
+                                    api: widget.api,
+                                  ),
+                                ),
+                              );
+                              await load();
+                            },
+                            child: const Text('Fassungen ansehen'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (widget.consumer && !subscriptionActive)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Kein aktives App-Abo bestätigt. Bereits gestartete Events bleiben nutzbar; neue Events sind gesperrt.',
+                          ),
+                          const SizedBox(height: 10),
+                          FilledButton(
+                            onPressed: _createEvent,
+                            child: const Text(
+                              'Monatsabo prüfen oder abschließen',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (widget.consumer && subscriptionActive)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'App-Abo aktiv · Neue Events sind im Abo enthalten.',
+                      ),
+                    ),
+                  ),
                 if (error != null) _ErrorCard(error!, load),
                 if (events.isEmpty)
                   const Card(
@@ -219,9 +363,12 @@ class _OwnerScreenState extends State<OwnerScreen> {
                     ),
                   );
                 }),
-                if(widget.consumer)...[
-                  const SizedBox(height:28),
-                  TextButton(onPressed:_deleteConsumerAccount,child:const Text('Privatkonto löschen')),
+                if (widget.consumer) ...[
+                  const SizedBox(height: 28),
+                  TextButton(
+                    onPressed: _deleteConsumerAccount,
+                    child: const Text('Privatkonto löschen'),
+                  ),
                 ],
               ],
             ),
@@ -230,9 +377,15 @@ class _OwnerScreenState extends State<OwnerScreen> {
 }
 
 class OwnerEventScreen extends StatefulWidget {
-  const OwnerEventScreen({super.key, required this.api, required this.eventId});
+  const OwnerEventScreen({
+    super.key,
+    required this.api,
+    required this.eventId,
+    this.onLogout,
+  });
   final ApiClient api;
   final String eventId;
+  final Future<void> Function()? onLogout;
   @override
   State<OwnerEventScreen> createState() => _OwnerEventScreenState();
 }
@@ -328,7 +481,9 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Helfer anlegen'),
-        content: const Text('Helfer kann nicht alarmiert werden, er wird nur in der Anwesenheit angezeigt und protokolliert!'),
+        content: const Text(
+          'Helfer kann nicht alarmiert werden, er wird nur in der Anwesenheit angezeigt und protokolliert!',
+        ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -355,13 +510,13 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
   }
 
   Future<void> addUnit() async {
-    final name = await ask('Sanitätsmittel anlegen', 'z. B. RTW 1');
+    final name = await ask('Einsatzmittel anlegen', 'z. B. RTW 1');
     if (name?.isEmpty != false) return;
     await mutate(
       () => widget.api.post('/api/events/${widget.eventId}/assignments', {
         'name': name,
       }),
-      'Sanitätsmittel wurde angelegt.',
+      'Einsatzmittel wurde angelegt.',
     );
   }
 
@@ -369,8 +524,15 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
     final helpers = (data?['helpers'] as List? ?? []);
     final units = (data?['assignments'] as List? ?? [])
         .where(
-          (u) => u['removedAt'] == null && u['operationalStatus'] != 'deployed' &&
-              helpers.any((h) => h['removedAt'] == null && h['registrationSource'] == 'qr' && h['assignmentId'] == u['id']),
+          (u) =>
+              u['removedAt'] == null &&
+              u['operationalStatus'] != 'deployed' &&
+              helpers.any(
+                (h) =>
+                    h['removedAt'] == null &&
+                    h['registrationSource'] == 'qr' &&
+                    h['assignmentId'] == u['id'],
+              ),
         )
         .toList();
     final selected = <String>{};
@@ -563,33 +725,143 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
     );
   }
 
+  Future<void> showEventDetails() async {
+    final event = data?['event'] as Map<String, dynamic>?;
+    final codes = (data?['eventAccessCodes'] as List? ?? [])
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eventdetails'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event?['name']?.toString() ?? 'Event',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  'Eventnummer: ${event?['id'] ?? widget.eventId}',
+                ),
+                const SizedBox(height: 16),
+                if (codes.isNotEmpty) ...[
+                  const Text(
+                    'Event-Zugänge',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Nur für den Ersteller sichtbar. Codes ausschließlich an die vorgesehene Person weitergeben.',
+                  ),
+                  const SizedBox(height: 8),
+                  ...codes.map((item) {
+                    final code = item['code']?.toString();
+                    return Card(
+                      child: ListTile(
+                        title: Text(_eventAccessRoleLabel(item['role'])),
+                        subtitle: code == null || code.isEmpty
+                            ? const Text(
+                                'Code einer älteren Fassung kann nicht erneut angezeigt werden.',
+                              )
+                            : SelectableText(code),
+                        trailing: code == null || code.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Code kopieren',
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: code),
+                                  );
+                                  if (dialogContext.mounted) {
+                                    ScaffoldMessenger.of(
+                                      dialogContext,
+                                    ).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Code kopiert.'),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.copy_outlined),
+                              ),
+                      ),
+                    );
+                  }),
+                ] else
+                  const Text(
+                    'Für dieses Event wurden keine Codelogins angelegt.',
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final event = data?['event'] as Map<String, dynamic>?;
+    final permissions =
+        (data?['permissions'] as Map?)?.cast<String, dynamic>() ??
+        const <String, dynamic>{};
+    bool allowed(String permission) => permissions[permission] == true;
     final helpers = (data?['helpers'] as List? ?? [])
         .where((h) => h['removedAt'] == null)
         .cast<Map<String, dynamic>>()
         .toList();
-    final units = (data?['assignments'] as List? ?? [])
-        .where((u) => u['removedAt'] == null)
-        .cast<Map<String, dynamic>>()
-        .toList();
-    final hasAlertableUnit = units.any((u) =>
-        u['operationalStatus'] != 'deployed' &&
-        helpers.any((h) => h['registrationSource'] == 'qr' && h['assignmentId'] == u['id']));
+    final units =
+        (data?['assignments'] as List? ?? [])
+            .where((u) => u['removedAt'] == null)
+            .cast<Map<String, dynamic>>()
+            .toList()
+          ..sort(
+            (left, right) => (left['name'] as String).toLowerCase().compareTo(
+              (right['name'] as String).toLowerCase(),
+            ),
+          );
+    final hasAlertableUnit = units.any(
+      (u) =>
+          u['operationalStatus'] != 'deployed' &&
+          helpers.any(
+            (h) =>
+                h['registrationSource'] == 'qr' && h['assignmentId'] == u['id'],
+          ),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(event?['name'] ?? 'Event'),
         actions: [
+          if (data != null && allowed('viewDetails'))
+            IconButton(
+              onPressed: showEventDetails,
+              tooltip: 'Eventdetails und Codes',
+              icon: const Icon(Icons.description_outlined),
+            ),
           IconButton(
             tooltip: 'Einstellungen',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => SettingsScreen(api:widget.api)),
+              MaterialPageRoute(
+                builder: (_) => SettingsScreen(api: widget.api),
+              ),
             ),
             icon: const Icon(Icons.settings_outlined),
           ),
-          if (data != null)
+          if (data != null && allowed('viewQr'))
             IconButton(
               onPressed: showQrCodes,
               tooltip: 'QR Kommen / Gehen',
@@ -599,9 +871,15 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
             onPressed: busy ? null : load,
             icon: const Icon(Icons.refresh),
           ),
+          if (widget.onLogout != null)
+            IconButton(
+              tooltip: 'Abmelden',
+              onPressed: busy ? null : widget.onLogout,
+              icon: const Icon(Icons.logout),
+            ),
         ],
       ),
-      floatingActionButton: event == null
+      floatingActionButton: event == null || !allowed('alarm')
           ? null
           : FloatingActionButton.extended(
               backgroundColor: Colors.red,
@@ -630,7 +908,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${helpers.length} Helfer anwesend · ${units.where((u) => u['operationalStatus'] == 'deployed').length} Sanitätsmittel im Einsatz',
+                          '${helpers.length} Helfer anwesend · ${units.where((u) => u['operationalStatus'] == 'deployed').length} Einsatzmittel im Einsatz',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -642,147 +920,176 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                     padding: const EdgeInsets.only(top: 12),
                     child: _ErrorCard(error!, load),
                   ),
-                const SizedBox(height: 18),
-                _SectionHeader('Helfer', Icons.groups, addHelper),
-                const SizedBox(height: 8),
-                if (helpers.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(22),
-                      child: Text('Aktuell keine Helfer anwesend.'),
-                    ),
+                if (allowed('viewHelpers')) ...[
+                  const SizedBox(height: 18),
+                  _SectionHeader(
+                    'Helfer',
+                    Icons.groups,
+                    allowed('manageHelpers') ? addHelper : null,
                   ),
-                ...helpers.map(
-                  (h) => Card(
-                    child: ListTile(
-                      title: Text(
-                        _helperName(h),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(height: 8),
+                  if (helpers.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(22),
+                        child: Text('Aktuell keine Helfer anwesend.'),
                       ),
-                      subtitle: Text(
-                        '${h['qualification']} · gekommen ${_time(h['registeredAt'])}',
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (h['registrationSource'] == 'manual')
-                            const Text('Nur Anwesenheit', style: TextStyle(color: Colors.black54))
-                          else DropdownButton<String>(
-                            value: h['assignmentId'] as String?,
-                            hint: const Text('Offen'),
-                            items: [
-                              const DropdownMenuItem(
-                                value: '',
-                                child: Text('Offen'),
+                    ),
+                  ...helpers.map(
+                    (h) => Card(
+                      child: ListTile(
+                        title: Text(
+                          _helperName(h),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          '${h['qualification']} · gekommen ${_time(h['registeredAt'])}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (h['registrationSource'] == 'manual')
+                              const Text(
+                                'Nur Anwesenheit',
+                                style: TextStyle(color: Colors.black54),
+                              )
+                            else if (allowed('assignHelpers'))
+                              DropdownButton<String>(
+                                value: h['assignmentId'] as String?,
+                                hint: const Text('Offen'),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: '',
+                                    child: Text('Offen'),
+                                  ),
+                                  ...units.map(
+                                    (u) => DropdownMenuItem(
+                                      value: u['id'] as String,
+                                      child: Text(u['name'] as String),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: busy
+                                    ? null
+                                    : (value) => mutate(
+                                        () => widget.api.patch(
+                                          '/api/events/${widget.eventId}/helpers/${h['id']}',
+                                          {
+                                            'assignmentId':
+                                                value?.isEmpty == true
+                                                ? null
+                                                : value,
+                                          },
+                                        ),
+                                        'Einteilung gespeichert.',
+                                      ),
+                              )
+                            else
+                              Text(
+                                units.any(
+                                      (unit) => unit['id'] == h['assignmentId'],
+                                    )
+                                    ? units
+                                          .firstWhere(
+                                            (unit) =>
+                                                unit['id'] == h['assignmentId'],
+                                          )['name']
+                                          .toString()
+                                    : 'Ohne Zuteilung',
                               ),
-                              ...units.map(
-                                (u) => DropdownMenuItem(
-                                  value: u['id'] as String,
-                                  child: Text(u['name'] as String),
+                            if (allowed('manageHelpers'))
+                              IconButton(
+                                tooltip: 'Helfer ausbuchen',
+                                onPressed: busy
+                                    ? null
+                                    : () => mutate(
+                                        () => widget.api.patch(
+                                          '/api/events/${widget.eventId}/helpers/${h['id']}',
+                                          {'action': 'checkout'},
+                                        ),
+                                        'Helfer wurde ausgebucht.',
+                                      ),
+                                icon: const Icon(
+                                  Icons.person_remove,
+                                  color: Colors.red,
                                 ),
                               ),
-                            ],
-                            onChanged: busy
-                                ? null
-                                : (value) => mutate(
-                                    () => widget.api.patch(
-                                      '/api/events/${widget.eventId}/helpers/${h['id']}',
-                                      {
-                                        'assignmentId': value?.isEmpty == true
-                                            ? null
-                                            : value,
-                                      },
-                                    ),
-                                    'Einteilung gespeichert.',
-                                  ),
-                          ),
-                          IconButton(
-                            tooltip: 'Helfer ausbuchen',
-                            onPressed: busy
-                                ? null
-                                : () => mutate(
-                                    () => widget.api.patch(
-                                      '/api/events/${widget.eventId}/helpers/${h['id']}',
-                                      {'action': 'checkout'},
-                                    ),
-                                    'Helfer wurde ausgebucht.',
-                                  ),
-                            icon: const Icon(
-                              Icons.person_remove,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _SectionHeader(
-                  'Sanitätsmittel',
-                  Icons.health_and_safety_outlined,
-                  addUnit,
-                ),
-                const SizedBox(height: 8),
-                if (units.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(22),
-                      child: Text('Noch keine Sanitätsmittel angelegt.'),
-                    ),
-                  ),
-                ...units.map((u) {
-                  final assigned = helpers
-                      .where((h) => h['assignmentId'] == u['id'])
-                      .length;
-                  final deployed = u['operationalStatus'] == 'deployed';
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: deployed
-                            ? const Color(0xffffe5e8)
-                            : const Color(0xffe7f6ee),
-                        child: Icon(
-                          deployed ? Icons.notifications_active : Icons.check,
-                          color: deployed ? Colors.red : Colors.green,
+                          ],
                         ),
                       ),
-                      title: Text(
-                        u['name'],
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '$assigned Helfer · ${deployed ? 'Im Einsatz seit ${_time(u['deployedAt'])}' : 'Frei für Einsätze'}',
-                      ),
-                      trailing: deployed
-                          ? TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => mutate(
-                                      () => widget.api.patch(
-                                        '/api/events/${widget.eventId}/assignments/${u['id']}',
-                                        {'action': 'clear'},
-                                      ),
-                                      'Sanitätsmittel ist wieder frei.',
-                                    ),
-                              child: const Text('Wieder frei'),
-                            )
-                          : assigned == 0
-                          ? IconButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => mutate(
-                                      () => widget.api.delete(
-                                        '/api/events/${widget.eventId}/assignments/${u['id']}',
-                                      ),
-                                      'Sanitätsmittel gelöscht.',
-                                    ),
-                              icon: const Icon(Icons.delete_outline),
-                            )
-                          : null,
                     ),
-                  );
-                }),
+                  ),
+                ],
+                if (allowed('viewOperations')) ...[
+                  const SizedBox(height: 18),
+                  _SectionHeader(
+                    'Einsatzmittel',
+                    Icons.health_and_safety_outlined,
+                    allowed('manageAssignments') ? addUnit : null,
+                  ),
+                  const SizedBox(height: 8),
+                  if (units.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(22),
+                        child: Text('Noch keine Einsatzmittel angelegt.'),
+                      ),
+                    ),
+                  ...units.map((u) {
+                    final assigned = helpers
+                            .where((h) => h['assignmentId'] == u['id'])
+                            .length,
+                        deployed = u['operationalStatus'] == 'deployed';
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: deployed
+                              ? const Color(0xffffe5e8)
+                              : const Color(0xffe7f6ee),
+                          child: Icon(
+                            deployed ? Icons.notifications_active : Icons.check,
+                            color: deployed ? Colors.red : Colors.green,
+                          ),
+                        ),
+                        title: Text(
+                          u['name'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          '$assigned Helfer · ${deployed ? 'Im Einsatz seit ${_time(u['deployedAt'])}' : 'Frei für Einsätze'}',
+                        ),
+                        trailing: deployed && allowed('alarm')
+                            ? TextButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => mutate(
+                                        () => widget.api.patch(
+                                          '/api/events/${widget.eventId}/assignments/${u['id']}',
+                                          {'action': 'clear'},
+                                        ),
+                                        'Einsatzmittel ist wieder frei.',
+                                      ),
+                                child: const Text('Wieder frei'),
+                              )
+                            : !deployed &&
+                                  assigned == 0 &&
+                                  allowed('manageAssignments')
+                            ? IconButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => mutate(
+                                        () => widget.api.delete(
+                                          '/api/events/${widget.eventId}/assignments/${u['id']}',
+                                        ),
+                                        'Einsatzmittel gelöscht.',
+                                      ),
+                                icon: const Icon(Icons.delete_outline),
+                              )
+                            : null,
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
     );
@@ -793,7 +1100,7 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title, this.icon, this.action);
   final String title;
   final IconData icon;
-  final VoidCallback action;
+  final VoidCallback? action;
   @override
   Widget build(BuildContext context) => Row(
     children: [
@@ -807,11 +1114,12 @@ class _SectionHeader extends StatelessWidget {
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
         ),
       ),
-      TextButton.icon(
-        onPressed: action,
-        icon: const Icon(Icons.add),
-        label: const Text('Anlegen'),
-      ),
+      if (action != null)
+        TextButton.icon(
+          onPressed: action,
+          icon: const Icon(Icons.add),
+          label: const Text('Anlegen'),
+        ),
     ],
   );
 }
@@ -862,3 +1170,10 @@ String _time(dynamic value) {
 String _helperName(Map<String, dynamic> h) => h['lastName'] != null
     ? '${h['lastName']}, ${h['firstName'] ?? ''}'
     : h['name'] as String;
+
+String _eventAccessRoleLabel(dynamic role) => switch (role) {
+  'helper_recorder' => 'Nur Helfererfassung',
+  'alarm_operator' => 'Nur Alarmierungsplattform',
+  'event_manager' => 'Alarmierung mit Verwaltung',
+  _ => 'Event-Zugang',
+};
