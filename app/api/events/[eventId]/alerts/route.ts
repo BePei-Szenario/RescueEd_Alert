@@ -4,6 +4,7 @@ import {alertAssignments,alertRecipients,alerts,assignments,helpers} from "@/db/
 import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {id} from "@/lib/security";
+import {dispatchAlertPush} from "@/lib/push-notifications";
 
 async function alarmLog(eventId:string){
  const rows=await getDb().select({id:alerts.id,message:alerts.message,createdAt:alerts.createdAt,assignmentId:assignments.id,assignmentName:assignments.name}).from(alerts).innerJoin(alertAssignments,eq(alertAssignments.alertId,alerts.id)).innerJoin(assignments,eq(assignments.id,alertAssignments.assignmentId)).where(eq(alerts.eventId,eventId)).orderBy(asc(alerts.createdAt),asc(assignments.name));
@@ -34,6 +35,8 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
    ...recipients.map(recipient=>db.insert(alertRecipients).values({id:id("alr"),alertId,helperId:recipient.id,sentAt:now})),
    ...units.map(unit=>db.update(assignments).set({operationalStatus:"deployed",deployedAt:now,clearedAt:null}).where(and(eq(assignments.id,unit.id),eq(assignments.eventId,event.id))))
   ]);
-  return Response.json({alert:{id:alertId,createdAt:now,message:message||null,assignments:units,recipientCount:recipients.length}},{status:201});
+  let push={configured:false,attempted:0,sent:0};
+  try{push=await dispatchAlertPush(alertId,event.id)}catch(error){console.error("alert_push_dispatch_failed",{alertId,error:error instanceof Error?error.message:"unknown"})}
+  return Response.json({alert:{id:alertId,createdAt:now,message:message||null,assignments:units,recipientCount:recipients.length},push},{status:201});
  }catch(error){console.error("alert_create_failed",error);return Response.json({error:"Alarmierung konnte nicht protokolliert werden."},{status:500})}
 }

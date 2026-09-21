@@ -11,14 +11,15 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});
   if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
   if(!permissions?.manageHelpers)return Response.json({error:"Dieser Event-Zugang darf keine Helfer anlegen."},{status:403});
-  const body=await request.json() as {firstName?:string;lastName?:string;qualification?:string};
-  const firstName=body.firstName?.trim(),lastName=body.lastName?.trim(),qualification=body.qualification?.trim();
+  const body=await request.json() as {firstName?:string;lastName?:string;qualification?:string;phone?:string};
+  const firstName=body.firstName?.trim(),lastName=body.lastName?.trim(),qualification=body.qualification?.trim(),phone=body.phone?.trim()||null;
   if(!firstName||!lastName||!qualification)return Response.json({error:"Bitte Vorname, Nachname und Qualifikation angeben."},{status:400});
-  if(firstName.length>80||lastName.length>80||qualification.length>100)return Response.json({error:"Eine Eingabe ist zu lang."},{status:400});
+  if(firstName.length>80||lastName.length>80||qualification.length>100||(phone?.length||0)>40)return Response.json({error:"Eine Eingabe ist zu lang."},{status:400});
+  if(phone&&!/^[0-9+()/.\s-]{3,40}$/.test(phone))return Response.json({error:"Bitte eine gültige Telefonnummer angeben oder das freiwillige Feld leer lassen."},{status:400});
   const name=`${firstName} ${lastName}`;
   const db=getDb(),helperToken=crypto.randomUUID()+crypto.randomUUID(),helperId=id("hlp"),registeredAt=new Date(),sessionTokenHash=await tokenHash(helperToken);
-  const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,session_token_hash,registration_source,registered_at,removed_at)
-    SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${sessionTokenHash},'manual',${registeredAt.getTime()},NULL
+  const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,phone,session_token_hash,registration_source,registered_at,removed_at)
+    SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${phone},${sessionTokenHash},'manual',${registeredAt.getTime()},NULL
     WHERE (SELECT COUNT(*) FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL) < ${event.helperLimit}
     AND NOT EXISTS (SELECT 1 FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL AND lower(trim(name))=lower(trim(${name}))) RETURNING id`);
   if(inserted.length!==1)return Response.json({error:"Die maximale Helferzahl ist erreicht oder diese Person bereits anwesend."},{status:409});

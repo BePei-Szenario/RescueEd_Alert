@@ -6,6 +6,7 @@ import '../api.dart';
 import '../alarm_monitor.dart';
 import '../alarm_tones.dart';
 import '../notifications.dart';
+import '../push_notifications.dart';
 import '../session_store.dart';
 import 'qr_flow.dart';
 import 'settings_screen.dart';
@@ -15,12 +16,14 @@ class HelperScreen extends StatefulWidget {
     super.key,
     required this.api,
     required this.notifications,
+    required this.pushNotifications,
     required this.eventId,
     required this.helperToken,
     required this.onSessionEnded,
   });
   final ApiClient api;
   final AlertNotifications notifications;
+  final PushNotifications pushNotifications;
   final String eventId, helperToken;
   final Future<void> Function() onSessionEnded;
   @override
@@ -35,6 +38,7 @@ class _HelperScreenState extends State<HelperScreen> {
   bool busy = false;
   String tone = alarmTones.first.id;
   bool backgroundMonitorReady = false;
+  bool pushReady = false;
   String? backgroundMonitorError;
   final shown = <String>{};
   @override
@@ -50,7 +54,21 @@ class _HelperScreenState extends State<HelperScreen> {
   Future<void> _init() async {
     tone = await store.readAlarmTone();
     await _startMonitor();
+    await _startPush();
     await load();
+  }
+
+  Future<void> _startPush() async {
+    try {
+      pushReady = await widget.pushNotifications.registerHelper(
+        eventId: widget.eventId,
+        helperToken: widget.helperToken,
+        alarmTone: tone,
+      );
+    } catch (_) {
+      pushReady = false;
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _startMonitor() async {
@@ -115,7 +133,7 @@ class _HelperScreenState extends State<HelperScreen> {
   ) async {
     final event = current['event'] as Map<String, dynamic>,
         assignment = current['assignment'] as Map<String, dynamic>?;
-    if (!backgroundMonitorReady) {
+    if (!backgroundMonitorReady && !pushReady) {
       await widget.notifications.showAlarm(
         alertId: alert['id'] as String,
         tone: tone,
@@ -238,6 +256,7 @@ class _HelperScreenState extends State<HelperScreen> {
               );
               tone = await store.readAlarmTone();
               await _startMonitor();
+              await _startPush();
               if (mounted) setState(() {});
             },
             icon: const Icon(Icons.settings_outlined),
@@ -262,6 +281,16 @@ class _HelperScreenState extends State<HelperScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Text(backgroundMonitorError!),
+                      ),
+                    ),
+                  if (!pushReady && !backgroundMonitorReady)
+                    const Card(
+                      color: Color(0xffffe8ea),
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'Push-Alarmierung ist auf diesem Gerät noch nicht eingerichtet. Die App nutzt während der geöffneten Helferansicht die Serverabfrage als Rückfallebene.',
+                        ),
                       ),
                     ),
                   Card(
@@ -293,6 +322,8 @@ class _HelperScreenState extends State<HelperScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(helper?['qualification'] ?? ''),
+                          if ((helper?['phone'] as String?)?.isNotEmpty == true)
+                            Text('Telefon: ${helper?['phone']}'),
                         ],
                       ),
                     ),

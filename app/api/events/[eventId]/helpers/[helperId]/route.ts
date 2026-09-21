@@ -1,6 +1,6 @@
 import {and,eq,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
-import {assignments,helpers} from "@/db/schema";
+import {assignments,helperDevices,helpers} from "@/db/schema";
 import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 
@@ -17,7 +17,11 @@ export async function PATCH(request:Request,{params}:{params:Promise<{eventId:st
   if(action==="checkout"){
    if(!permissions?.manageHelpers)return Response.json({error:"Dieser Event-Zugang darf keine Helfer ausbuchen."},{status:403});
    if(person.removedAt)return Response.json({error:"Helfer wurde bereits ausgebucht."},{status:409});
-   const leftAt=new Date();await db.update(helpers).set({removedAt:leftAt}).where(eq(helpers.id,helperId));
+   const leftAt=new Date();
+   await db.batch([
+    db.update(helpers).set({removedAt:leftAt}).where(eq(helpers.id,helperId)),
+    db.delete(helperDevices).where(eq(helperDevices.helperId,helperId)),
+   ]);
    return Response.json({ok:true,leftAt:leftAt.toISOString()});
   }
   if(!permissions?.assignHelpers)return Response.json({error:"Dieser Event-Zugang darf keine Einteilungen ändern."},{status:403});

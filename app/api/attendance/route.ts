@@ -1,6 +1,6 @@
 import {and,eq,isNull,sql} from "drizzle-orm";
 import {getDb} from "@/db";
-import {events,helpers} from "@/db/schema";
+import {events,helperDevices,helpers} from "@/db/schema";
 import {attendanceWindowOpen} from "@/lib/attendance-window";
 import {effectiveEventEndDate} from "@/lib/event-duration";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
@@ -18,17 +18,18 @@ export async function POST(request:Request){
  try{
   const bad=rejectCrossSiteMutation(request);if(bad)return bad;
   const limit=await consumeRateLimit({scope:"attendance-network",subject:requestNetwork(request),limit:120,windowMs:10*60_000});if(!limit.allowed)return rateLimited(limit.retryAfterSeconds);
-  const body=await request.json() as {eventId?:string;code?:string;action?:Action;firstName?:string;lastName?:string;qualification?:string;helperToken?:string},action=body.action==="leave"?"leave":"come";
+  const body=await request.json() as {eventId?:string;code?:string;action?:Action;firstName?:string;lastName?:string;qualification?:string;phone?:string;helperToken?:string},action=body.action==="leave"?"leave":"come";
   if(!body.eventId||!body.code)return Response.json({error:"QR-Code unvollständig."},{status:400});
   const event=await publicEvent(body.eventId,body.code,action);if(!event)return Response.json({error:"Dieser QR-Code ist ungültig oder nicht mehr aktiv."},{status:404});
   const db=getDb(),now=new Date();
   if(action==="come"){
-   const firstName=body.firstName?.trim(),lastName=body.lastName?.trim(),qualification=body.qualification?.trim();
+   const firstName=body.firstName?.trim(),lastName=body.lastName?.trim(),qualification=body.qualification?.trim(),phone=body.phone?.trim()||null;
    if(!firstName||!lastName||!qualification)return Response.json({error:"Bitte Vorname, Nachname und Qualifikation angeben."},{status:400});
-   if(firstName.length>80||lastName.length>80||qualification.length>100)return Response.json({error:"Eine Eingabe ist zu lang."},{status:400});
+   if(firstName.length>80||lastName.length>80||qualification.length>100||(phone?.length||0)>40)return Response.json({error:"Eine Eingabe ist zu lang."},{status:400});
+   if(phone&&!/^[0-9+()/.\s-]{3,40}$/.test(phone))return Response.json({error:"Bitte eine gültige Telefonnummer angeben oder das freiwillige Feld leer lassen."},{status:400});
     const helperToken=crypto.randomUUID()+crypto.randomUUID(),helperId=id("hlp"),name=`${firstName} ${lastName}`,sessionTokenHash=await tokenHash(helperToken);
-    const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,session_token_hash,registration_source,registered_at,removed_at)
-      SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${sessionTokenHash},'qr',${now.getTime()},NULL
+    const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,phone,session_token_hash,registration_source,registered_at,removed_at)
+      SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${phone},${sessionTokenHash},'qr',${now.getTime()},NULL
       WHERE (SELECT COUNT(*) FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL) < ${event.helperLimit}
       AND NOT EXISTS (SELECT 1 FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL AND lower(trim(name))=lower(trim(${name}))) RETURNING id`);
     if(inserted.length!==1)return Response.json({error:"Die maximale Helferzahl ist erreicht oder diese Person bereits eingecheckt."},{status:409});
@@ -37,7 +38,7 @@ export async function POST(request:Request){
   if(!body.helperToken)return Response.json({error:"Auf diesem Gerät wurde kein aktiver Check-in gefunden."},{status:400});
   const [person]=await db.select({id:helpers.id}).from(helpers).where(and(eq(helpers.eventId,event.id),eq(helpers.sessionTokenHash,await tokenHash(body.helperToken)),isNull(helpers.removedAt))).limit(1);
   if(!person)return Response.json({error:"Der Check-in wurde nicht gefunden oder bereits beendet."},{status:404});
-  await db.update(helpers).set({removedAt:now}).where(eq(helpers.id,person.id));
+  await db.batch([db.update(helpers).set({removedAt:now}).where(eq(helpers.id,person.id)),db.delete(helperDevices).where(eq(helperDevices.helperId,person.id))]);
   return Response.json({ok:true,leftAt:now.toISOString()});
  }catch(error){console.error("attendance_update_failed",error);return Response.json({error:"Anwesenheit konnte nicht gespeichert werden."},{status:500})}
 }
