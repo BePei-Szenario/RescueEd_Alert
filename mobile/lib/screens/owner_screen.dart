@@ -190,10 +190,11 @@ class _OwnerScreenState extends State<OwnerScreen> {
       await widget.onLogout();
     } catch (e) {
       password.dispose();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Kontolöschung fehlgeschlagen: $e')),
         );
+      }
     }
   }
 

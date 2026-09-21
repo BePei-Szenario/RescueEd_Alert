@@ -98,7 +98,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
     await store.saveOwnerSession(api.sessionCookie!);
     await store.saveOwnerSessionCookieName(api.sessionCookieName);
     final profile = await api.get('/api/auth/me');
-    if (mounted)
+    if (mounted) {
       setState(() {
         final access = profile['eventAccess'] as Map<String, dynamic>?;
         eventAccessEventId = access?['eventId'] as String?;
@@ -108,6 +108,7 @@ class _RescueEdAppState extends State<RescueEdApp> {
             ? 'consumer'
             : 'owner';
       });
+    }
   }
 
   Future<void> _ownerLogout() async {

@@ -33,8 +33,9 @@ class CrashReporting {
     StackTrace? stack,
     String source,
   ) async {
-    if (kDebugMode || _sending || !(Platform.isAndroid || Platform.isIOS))
+    if (kDebugMode || _sending || !(Platform.isAndroid || Platform.isIOS)) {
       return;
+    }
     _sending = true;
     try {
       final uri = Uri.parse(
