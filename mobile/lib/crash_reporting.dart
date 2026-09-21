@@ -28,25 +28,34 @@ class CrashReporting {
     };
   }
 
-  static Future<void> report(Object error, StackTrace? stack, String source) async {
-    if (kDebugMode || _sending || !(Platform.isAndroid || Platform.isIOS)) return;
+  static Future<void> report(
+    Object error,
+    StackTrace? stack,
+    String source,
+  ) async {
+    if (kDebugMode || _sending || !(Platform.isAndroid || Platform.isIOS))
+      return;
     _sending = true;
     try {
-      final uri = Uri.parse('${defaultApiUrl.replaceAll(RegExp(r'/$'), '')}/api/mobile/crash-reports');
+      final uri = Uri.parse(
+        '${defaultApiUrl.replaceAll(RegExp(r'/$'), '')}/api/mobile/crash-reports',
+      );
       if (uri.scheme != 'https') return;
-      await http.post(
-        uri,
-        headers: const {'content-type': 'application/json'},
-        body: jsonEncode({
-          'platform': Platform.isAndroid ? 'android' : 'ios',
-          'appVersion': _version,
-          'source': source,
-          'errorKind': error.runtimeType.toString(),
-          // No exception message, account ID, session cookie or device ID.
-          'stack': stack?.toString() ?? '',
-          'occurredAt': DateTime.now().toUtc().toIso8601String(),
-        }),
-      ).timeout(const Duration(seconds: 4));
+      await http
+          .post(
+            uri,
+            headers: const {'content-type': 'application/json'},
+            body: jsonEncode({
+              'platform': Platform.isAndroid ? 'android' : 'ios',
+              'appVersion': _version,
+              'source': source,
+              'errorKind': error.runtimeType.toString(),
+              // No exception message, account ID, session cookie or device ID.
+              'stack': stack?.toString() ?? '',
+              'occurredAt': DateTime.now().toUtc().toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(seconds: 4));
     } catch (_) {
       // Telemetry must never cause a second crash.
     } finally {

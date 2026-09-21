@@ -65,7 +65,10 @@ class _HelperScreenState extends State<HelperScreen> {
     } catch (_) {
       backgroundMonitorReady = false;
       if (mounted) {
-        setState(() => backgroundMonitorError = 'Hintergrund-Alarmbereitschaft konnte nicht gestartet werden. Bitte Benachrichtigungen und App-Berechtigungen prüfen.');
+        setState(
+          () => backgroundMonitorError =
+              'Hintergrund-Alarmbereitschaft konnte nicht gestartet werden. Bitte Benachrichtigungen und App-Berechtigungen prüfen.',
+        );
       }
     }
   }
@@ -225,7 +228,13 @@ class _HelperScreenState extends State<HelperScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => SettingsScreen(api:widget.api,eventId:widget.eventId,helperToken:widget.helperToken)),
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(
+                    api: widget.api,
+                    eventId: widget.eventId,
+                    helperToken: widget.helperToken,
+                  ),
+                ),
               );
               tone = await store.readAlarmTone();
               await _startMonitor();

@@ -12,10 +12,12 @@ class HomeScreen extends StatelessWidget {
     required this.onScan,
     required this.onConsumerLogin,
     required this.onConsumerRegister,
+    required this.onCodeLogin,
   });
   final ApiClient api;
   final VoidCallback onLogin, onScan;
   final VoidCallback onConsumerLogin, onConsumerRegister;
+  final VoidCallback onCodeLogin;
 
   Future<void> _showLegal(BuildContext context, String slug) async {
     try {
@@ -119,6 +121,20 @@ class HomeScreen extends StatelessWidget {
                       onPressed: onScan,
                       icon: const Icon(Icons.qr_code_scanner),
                       label: const Text('Event-QR-Code scannen'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: onCodeLogin,
+                      icon: const Icon(Icons.key_outlined),
+                      label: const Text('Codelogin für ein Event'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xff4f9cff)),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

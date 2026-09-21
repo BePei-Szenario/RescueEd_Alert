@@ -1,13 +1,13 @@
 import {and,eq,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
 import {assignments,helpers} from "@/db/schema";
-import {ownedEvent} from "@/lib/event-access";
+import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 
 export async function PATCH(request:Request,{params}:{params:Promise<{eventId:string;assignmentId:string}>}){
  try{
   const bad=rejectCrossSiteMutation(request);if(bad)return bad;
-  const {eventId,assignmentId}=await params,{user,event}=await ownedEvent(eventId);if(!user)return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
+  const {eventId,assignmentId}=await params,authorization=await ownedEvent(eventId),{event,permissions}=authorization;if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});if(!permissions?.alarm)return Response.json({error:"Dieser Event-Zugang darf Einsatzmittel nicht freimelden."},{status:403});
   const body=await request.json() as {action?:unknown};if(body.action!=="clear")return Response.json({error:"Ungültige Statusänderung."},{status:400});
   const db=getDb(),[unit]=await db.select({id:assignments.id,operationalStatus:assignments.operationalStatus}).from(assignments).where(and(eq(assignments.id,assignmentId),eq(assignments.eventId,event.id),isNull(assignments.removedAt))).limit(1);if(!unit)return Response.json({error:"Sanitätsmittel nicht gefunden."},{status:404});
   const clearedAt=new Date();await db.update(assignments).set({operationalStatus:"available",clearedAt}).where(and(eq(assignments.id,unit.id),eq(assignments.eventId,event.id)));
@@ -18,9 +18,10 @@ export async function PATCH(request:Request,{params}:{params:Promise<{eventId:st
 export async function DELETE(request:Request,{params}:{params:Promise<{eventId:string;assignmentId:string}>}){
  try{
   const bad=rejectCrossSiteMutation(request);if(bad)return bad;
-  const {eventId,assignmentId}=await params,{user,event}=await ownedEvent(eventId);
-  if(!user)return Response.json({error:"Bitte zuerst anmelden."},{status:401});
+  const {eventId,assignmentId}=await params,authorization=await ownedEvent(eventId),{event,permissions}=authorization;
+  if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});
   if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
+  if(!permissions?.manageAssignments)return Response.json({error:"Dieser Event-Zugang darf keine Einsatzmittel löschen."},{status:403});
   const db=getDb(),[unit]=await db.select({id:assignments.id}).from(assignments).where(and(eq(assignments.id,assignmentId),eq(assignments.eventId,event.id))).limit(1);
   if(!unit)return Response.json({error:"Sanitätsmittel nicht gefunden."},{status:404});
   const [assignedHelper]=await db.select({id:helpers.id}).from(helpers).where(and(eq(helpers.eventId,event.id),eq(helpers.assignmentId,assignmentId),isNull(helpers.removedAt))).limit(1);

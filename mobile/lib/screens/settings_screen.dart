@@ -8,9 +8,9 @@ import '../api.dart';
 import 'support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key,this.api,this.eventId,this.helperToken});
+  const SettingsScreen({super.key, this.api, this.eventId, this.helperToken});
   final ApiClient? api;
-  final String? eventId,helperToken;
+  final String? eventId, helperToken;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -71,10 +71,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : ListView(
             padding: const EdgeInsets.all(18),
             children: [
-              if(widget.api!=null)...[
-                Card(child:ListTile(leading:const Icon(Icons.support_agent),title:const Text('Support & Tickets'),subtitle:const Text('Fehler melden und Antworten lesen'),trailing:const Icon(Icons.chevron_right),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SupportScreen(api:widget.api!,eventId:widget.eventId,helperToken:widget.helperToken))))),
-                const Padding(padding:EdgeInsets.only(top:8),child:Text('In Release-Versionen werden unbehandelte App-Fehler mit App-Version und gekürztem Stack an RescueEd gemeldet. Keine Fehlermeldung oder Zugangsdaten werden übertragen.',style:TextStyle(fontSize:12,color:Colors.blueGrey))),
-                const SizedBox(height:18),
+              if (widget.api != null) ...[
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.support_agent),
+                    title: const Text('Support & Tickets'),
+                    subtitle: const Text('Fehler melden und Antworten lesen'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SupportScreen(
+                          api: widget.api!,
+                          eventId: widget.eventId,
+                          helperToken: widget.helperToken,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'In Release-Versionen werden unbehandelte App-Fehler mit App-Version und gekürztem Stack an RescueEd gemeldet. Keine Fehlermeldung oder Zugangsdaten werden übertragen.',
+                    style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+                  ),
+                ),
+                const SizedBox(height: 18),
               ],
               Text(
                 'Alarmton auswählen',

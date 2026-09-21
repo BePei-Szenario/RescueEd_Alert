@@ -24,6 +24,9 @@ export async function POST(request:Request){
   if(consumed.length!==1)return Response.json({error:"Sicherheitscode ungültig oder abgelaufen."},{status:401});
   const raw=crypto.randomUUID()+crypto.randomUUID();await db.insert(sessions).values({id:id("ses"),userId:user.id,tokenHash:await tokenHash(raw),expiresAt:new Date(now.getTime()+8*3600000),createdAt:now});
   const secure=new URL(request.url).protocol==="https:"||process.env.NODE_ENV==="production"?"; Secure":"";
-  return new Response(JSON.stringify({ok:true,userId:user.id,role:user.role,redirectTo:user.role==="platform_owner"||user.role==="platform_staff"?"/unternehmer":"/"}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":`rescueed_session=${raw}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${secure}`}});
+  const headers=new Headers({"content-type":"application/json","cache-control":"no-store"});
+  headers.append("set-cookie",`rescueed_session=${raw}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${secure}`);
+  headers.append("set-cookie",`rescueed_event_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`);
+  return new Response(JSON.stringify({ok:true,userId:user.id,role:user.role,redirectTo:user.role==="platform_owner"||user.role==="platform_staff"?"/unternehmer":"/"}),{headers});
  }catch(error){console.error("mfa_verify_failed",error);return Response.json({error:"Sicherheitscode konnte nicht geprüft werden."},{status:500})}
 }

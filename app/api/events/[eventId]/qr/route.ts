@@ -2,13 +2,14 @@ import QRCode from "qrcode";
 import {eq} from "drizzle-orm";
 import {getDb} from "@/db";
 import {events} from "@/db/schema";
-import {ownedEvent} from "@/lib/event-access";
+import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 
 export async function GET(request:Request,{params}:{params:Promise<{eventId:string}>}){
  try{
-  const {eventId}=await params,{user,event}=await ownedEvent(eventId);
-  if(!user)return new Response("Nicht angemeldet",{status:401});
+  const {eventId}=await params,authorization=await ownedEvent(eventId),{event,permissions}=authorization;
+  if(!eventAuthenticated(authorization))return new Response("Nicht angemeldet",{status:401});
   if(!event)return new Response("Event nicht gefunden",{status:404});
+  if(!permissions?.viewQr)return new Response("Dieser Event-Zugang darf keine Anwesenheits-QR-Codes öffnen",{status:403});
   const query=new URL(request.url),kind=query.searchParams.get("kind")==="leave"?"leave":"come",field=kind==="come"?"checkInCode":"checkOutCode";
   let code=event[field];
   if(!code){code=crypto.randomUUID().replaceAll("-","");await getDb().update(events).set(kind==="come"?{checkInCode:code}:{checkOutCode:code}).where(eq(events.id,event.id))}

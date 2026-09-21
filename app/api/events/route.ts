@@ -1,6 +1,6 @@
 import {and,desc,eq,inArray,isNotNull,or} from "drizzle-orm";
 import {getDb} from "@/db";
-import {billingRecords,emailOutbox,eventAdministrators,events,invoiceRequests,organizations} from "@/db/schema";
+import {billingRecords,emailOutbox,eventAccessCodes,eventAdministrators,events,invoiceRequests,organizations} from "@/db/schema";
 import {emailPayload} from "@/lib/email-signature";
 import {eventDurationMinutes,STANDARD_EVENT_MAX_MINUTES} from "@/lib/event-duration";
 import {senderFor} from "@/lib/email-settings";
@@ -11,6 +11,11 @@ import {calendarYearRetentionEnd} from "@/lib/retention";
 import {currentUser} from "@/lib/session";
 import {legalReconfirmation} from "@/lib/legal-reconfirmation";
 import {consumerEntitlement} from "@/lib/app-subscriptions";
+import type {EventAccessRole} from "@/lib/event-access";
+import {encryptEventAccessCode} from "@/lib/event-access-code-crypto";
+
+const eventAccessRoles:EventAccessRole[]=["helper_recorder","alarm_operator","event_manager"];
+function eventCode(){const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",bytes=crypto.getRandomValues(new Uint8Array(8));return [...bytes].map(value=>alphabet[value%alphabet.length]).join("")}
 
 export async function GET(){try{const owner=await currentUser();if(!owner||owner.role==="platform_owner"||owner.role==="platform_staff")return Response.json({error:"Bitte zuerst anmelden."},{status:401});const db=getDb(),memberships=await db.select({eventId:eventAdministrators.eventId}).from(eventAdministrators).where(and(eq(eventAdministrators.userId,owner.id),eq(eventAdministrators.role,"owner"),isNotNull(eventAdministrators.acceptedAt))),memberIds=memberships.map(row=>row.eventId);const access=owner.accountType==="organization"?undefined:memberIds.length?or(eq(events.ownerUserId,owner.id),inArray(events.id,memberIds)):eq(events.ownerUserId,owner.id);const rows=await db.select({id:events.id,name:events.name,eventDate:events.eventDate,helperLimit:events.helperLimit,priceCents:events.priceCents,status:events.status}).from(events).where(access?and(eq(events.organizationId,owner.organizationId),access):eq(events.organizationId,owner.organizationId)).orderBy(desc(events.createdAt));return Response.json({events:rows})}catch(error){console.error("event_list_failed",error);return Response.json({error:"Events konnten nicht geladen werden."},{status:500})}}
 
@@ -23,9 +28,11 @@ export async function POST(request:Request){
    const entitlement=await consumerEntitlement(owner.id);
    if(!entitlement.active)return Response.json({error:entitlement.status==="unavailable"?"Der Abo-Status ist derzeit nicht prüfbar. Bitte später erneut versuchen.":"Für ein neues Event ist ein aktives App-Abo erforderlich.",subscriptionStatus:entitlement.status},{status:entitlement.status==="unavailable"?503:402,headers:{"cache-control":"no-store"}});
   }
-  const b=await request.json() as Record<string,string|number>;
+  const b=await request.json() as Record<string,unknown>;
   const count=Number(b.helperLimit),listedPriceCents=count<=20?599:999;
   const name=String(b.name||"").trim(),eventDate=String(b.eventDate||""),endDate=String(b.endDate||""),startTime=String(b.startTime||""),endTime=String(b.endTime||"");
+  const accessRoles=Array.isArray(b.accessRoles)?[...new Set(b.accessRoles.filter((value):value is EventAccessRole=>typeof value==="string"&&eventAccessRoles.includes(value as EventAccessRole)))]:[];
+  if(Array.isArray(b.accessRoles)&&accessRoles.length!==b.accessRoles.length)return Response.json({error:"Mindestens eine ungültige Event-Zugangsrolle wurde übermittelt."},{status:400});
   const recipientName=owner.accountType==="consumer"?owner.fullName:String(b.recipientName||"").trim(),street=String(b.street||"").trim(),postalCode=String(b.postalCode||"").trim(),city=String(b.city||"").trim(),billingEmail=owner.accountType==="consumer"?owner.email:String(b.billingEmail||"").trim().toLowerCase();
   if(!name||!eventDate||!endDate||!startTime||!endTime||(owner.accountType!=="consumer"&&(!recipientName||!street||!postalCode||!city||!billingEmail)))return Response.json({error:"Bitte alle Pflichtfelder ausfüllen."},{status:400});
   if(!Number.isInteger(count)||count<1||count>1000)return Response.json({error:"Die Helferzahl muss zwischen 1 und 1000 liegen."},{status:400});
@@ -43,6 +50,7 @@ export async function POST(request:Request){
   const networkLimit=await consumeRateLimit({scope:"event-create-network",subject:requestNetwork(request),limit:40,windowMs:60*60_000});if(!networkLimit.allowed)return rateLimited(networkLimit.retryAfterSeconds);
   const complimentaryAccess=owner.accountType==="consumer"||organization.complimentaryAccess===true,priceCents=complimentaryAccess?0:listedPriceCents;
   const now=new Date(),eventId=id("evt"),invoiceId=complimentaryAccess?null:id("inv"),joinToken=crypto.randomUUID().replaceAll("-",""),checkInCode=crypto.randomUUID().replaceAll("-",""),checkOutCode=crypto.randomUUID().replaceAll("-",""),adminId=id("adm"),mailId=id("mail");
+  const accessExpiresAt=new Date(`${endDate}T${endTime}:00`),accessCodeRows=await Promise.all(accessRoles.map(async role=>{const code=eventCode(),accessId=id("eac");return {code,row:{id:accessId,eventId,role,codeHash:await tokenHash(code),codeEncrypted:await encryptEventAccessCode(code,accessId,eventId,role),expiresAt:accessExpiresAt,createdByUserId:owner.id,createdAt:now}}}));
   const netCents=Math.round(priceCents/1.19),vatCents=priceCents-netCents,senderEmail=await senderFor("customer_contact");
   const eventPeriod=`${eventDate}, ${startTime} Uhr – ${endDate}, ${endTime} Uhr`;
   await db.batch([
@@ -50,9 +58,10 @@ export async function POST(request:Request){
    ...(invoiceId?[db.insert(invoiceRequests).values({id:invoiceId,eventId,recipientName,street,postalCode,city,email:billingEmail,amountCents:priceCents,createdAt:now})]:[]),
    ...(invoiceId?[db.insert(billingRecords).values({id:invoiceId,customerName:owner.fullName,organizationName:organization.name,recipientName,street,postalCode,city,email:billingEmail,eventName:name,eventDate,helperLimit:count,amountCents:priceCents,currency:"EUR",createdAt:now,retainUntil:calendarYearRetentionEnd(now,8).getTime()})]:[]),
    db.insert(eventAdministrators).values({id:adminId,eventId,userId:owner.id,role:"owner",acceptedAt:now,createdAt:now}),
+   ...accessCodeRows.map(item=>db.insert(eventAccessCodes).values(item.row)),
    db.insert(emailOutbox).values({id:mailId,userId:owner.id,type:"order_confirmation",senderEmail,recipientEmail:owner.email,subject:owner.accountType==="consumer"?`RescueEd Alert – Event im App-Abo ${name}`:complimentaryAccess?`RescueEd Alert – Kostenfreies Event ${name}`:`RescueEd Alert – Bestellbestätigung für ${name}`,payloadJson:emailPayload({template:"order_confirmation",orderReference:invoiceId||eventId,orderedAt:now.toISOString(),recipientName,billingAddress:{street,postalCode,city},event:{name,date:eventDate,endDate,startTime,endTime,period:eventPeriod,helperLimit:count},service:`RescueEd Alert Event-Paket für bis zu ${count} Helfer`,paymentMethod:owner.accountType==="consumer"?"App-Abo":complimentaryAccess?"Kostenfreie Nutzung":"Rechnung",billingTiming:complimentaryAccess?"Keine zusätzliche Eventabrechnung":"Abrechnung am Monatsende",pricing:{currency:"EUR",vatRatePercent:complimentaryAccess?0:19,netCents,vatCents,grossCents:priceCents},message:owner.accountType==="consumer"?"Das Event wurde im Rahmen Ihres aktiven App-Abonnements angelegt. Für dieses Event entsteht kein zusätzliches Entgelt.":complimentaryAccess?"Das Event wurde im Rahmen Ihrer freigeschalteten kostenlosen Nutzung angelegt. Es entsteht keine Rechnungsanforderung.":"Vielen Dank für Ihre Bestellung. Wir haben Ihre Bestellung erhalten und bearbeiten diese so schnell wie möglich. Diese E-Mail bestätigt den Eingang Ihrer kostenpflichtigen Bestellung. Die Abrechnung erfolgt am Monatsende per Rechnung."}),createdAt:now})
   ]);
-  return Response.json({eventId,invoiceId,priceCents,netCents,vatCents,complimentaryAccess,confirmationEmailQueued:true},{status:201});
+  return Response.json({eventId,invoiceId,priceCents,netCents,vatCents,complimentaryAccess,confirmationEmailQueued:true,eventAccessCodes:accessCodeRows.map(item=>({role:item.row.role,code:item.code,expiresAt:item.row.expiresAt.toISOString()}))},{status:201});
  }catch(error){
   console.error("event_creation_failed",error);
   return Response.json({error:"Event konnte nicht gespeichert werden."},{status:500});

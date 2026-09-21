@@ -3,5 +3,6 @@
 .legal-version{border:1px solid #d8e0ea;border-radius:.65rem;padding:.7rem}.legal-version details summary{cursor:pointer;color:#10223d;font-weight:800}.legal-version-content{max-height:15rem;overflow:auto;white-space:pre-wrap;line-height:1.5;margin:.6rem 0;padding:.8rem;background:#f6f9fe;border-radius:.4rem}.legal-version label{margin-top:.6rem}.legal-version input:disabled{opacity:.45}
 .registrationform select{width:100%;padding:.8rem 0;background:transparent;color:#10223d;font-weight:400;outline:0}
 .authform>button.textlink{width:auto;margin:.75rem auto 0;padding:0;background:transparent;color:#1769e0;font-size:.82rem;font-weight:700}
+.code-login-separator{display:flex;align-items:center;gap:.7rem;margin:1.15rem 0 .75rem;color:#7b8ca3;font-size:.7rem;font-weight:700;text-align:center}.code-login-separator::before,.code-login-separator::after{content:"";height:1px;flex:1;background:#d8e0ea}.authform>button.code-login-button{margin-top:0;border:1px solid #9bc0ee;background:#eef5ff;color:#0b57d0;box-shadow:none}.code-login-button svg{width:1.05rem;height:1.05rem}.code-login-button svg:last-child{margin-left:auto}.event-code-note{margin-top:.8rem;color:#64748b;font-size:.72rem;line-height:1.45;text-align:center}
 .legal-version details summary{font-size:14px}
 .legal-version-content{font-size:14px;line-height:1.6}

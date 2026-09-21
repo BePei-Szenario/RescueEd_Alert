@@ -2,7 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const required = ["DATABASE_PATH", "BACKUP_DIR", "BACKUP_ENCRYPTION_KEY", "EMAIL_PAYLOAD_KEY", "APP_SUBSCRIPTION_KEY", "PUBLIC_BASE_URL", "MAIL_FROM_MFA", "MAIL_FROM_CONTACT", "MSMTP_CONFIG"];
+const required = ["DATABASE_PATH", "BACKUP_DIR", "BACKUP_ENCRYPTION_KEY", "EMAIL_PAYLOAD_KEY", "APP_SUBSCRIPTION_KEY", "EVENT_ACCESS_CODE_KEY", "PUBLIC_BASE_URL", "MAIL_FROM_MFA", "MAIL_FROM_CONTACT", "MSMTP_CONFIG"];
 let failed = false;
 for (const name of required) {
   if (!process.env[name]) { process.stderr.write(`FEHLT: ${name}\n`); failed = true; }
@@ -40,6 +40,8 @@ if (emailKeyBytes.length !== 32) { process.stderr.write("EMAIL_PAYLOAD_KEY muss 
 const backupKey = process.env.BACKUP_ENCRYPTION_KEY || "";
 if ((/^[0-9a-f]{64}$/i.test(backupKey) ? Buffer.from(backupKey,"hex") : Buffer.from(backupKey,"base64")).length !== 32) { process.stderr.write("BACKUP_ENCRYPTION_KEY muss 32 Byte enthalten.\n"); failed = true; }
 if (Buffer.from(process.env.APP_SUBSCRIPTION_KEY || "", "base64").length !== 32) { process.stderr.write("APP_SUBSCRIPTION_KEY muss 32 Byte Base64 enthalten.\n"); failed = true; }
+const eventCodeKey = process.env.EVENT_ACCESS_CODE_KEY || "";
+if ((/^[0-9a-f]{64}$/i.test(eventCodeKey) ? Buffer.from(eventCodeKey,"hex") : Buffer.from(eventCodeKey,"base64")).length !== 32) { process.stderr.write("EVENT_ACCESS_CODE_KEY muss 32 Byte enthalten.\n"); failed = true; }
 const msmtp = process.env.MSMTP_CONFIG;
 if (msmtp && !path.isAbsolute(msmtp)) { process.stderr.write("MSMTP_CONFIG muss ein absoluter Pfad sein.\n"); failed = true; }
 if (msmtp && !existsSync(msmtp)) { process.stderr.write("MSMTP_CONFIG fehlt.\n"); failed = true; }

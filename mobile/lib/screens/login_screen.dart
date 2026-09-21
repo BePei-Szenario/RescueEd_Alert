@@ -8,7 +8,7 @@ class LoginScreen extends StatefulWidget {
     required this.api,
     required this.onBack,
     required this.onAuthenticated,
-    this.consumer=false,
+    this.consumer = false,
   });
   final ApiClient api;
   final VoidCallback onBack;
@@ -32,7 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       if (challenge == null) {
-        final next = await widget.api.login(email.text.trim(), password.text,consumer:widget.consumer);
+        final next = await widget.api.login(
+          email.text.trim(),
+          password.text,
+          consumer: widget.consumer,
+        );
         setState(() => challenge = next);
       } else {
         await widget.api.verifyCode(challenge!.challenge, code.text.trim());
@@ -52,7 +56,9 @@ class _LoginScreenState extends State<LoginScreen> {
         onPressed: widget.onBack,
         icon: const Icon(Icons.arrow_back),
       ),
-      title: Text(widget.consumer?'Privatkonto anmelden':'Organisations-Login'),
+      title: Text(
+        widget.consumer ? 'Privatkonto anmelden' : 'Organisations-Login',
+      ),
     ),
     body: ListView(
       padding: const EdgeInsets.all(24),
@@ -70,7 +76,9 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 8),
         Text(
           challenge == null
-              ? widget.consumer?'Melde dich mit deinem Privatkonto an.':'Melde dich mit dem Organisationskonto an.'
+              ? widget.consumer
+                    ? 'Melde dich mit deinem Privatkonto an.'
+                    : 'Melde dich mit dem Organisationskonto an.'
               : 'Gib den per E-Mail gesendeten sechsstelligen Sicherheitscode ein.',
           textAlign: TextAlign.center,
         ),

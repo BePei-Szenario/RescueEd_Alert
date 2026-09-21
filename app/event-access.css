@@ -1,0 +1,49 @@
+.event-access-section > .profilehint {
+  margin: -0.5rem 0 0.5rem;
+}
+
+.createform label.event-access-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-top: 0.7rem;
+  border: 1px solid #dce5ef;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.event-access-option input {
+  width: 1rem;
+  margin: 0.2rem 0 0;
+  accent-color: #1769e0;
+}
+
+.event-access-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.event-access-option b { color: #10223d; }
+.event-access-option small { color: #64748b; font-size: 0.75rem; line-height: 1.45; }
+
+.created-event-codes {
+  margin: 1rem 0;
+  border-radius: 0.8rem;
+  background: #eef5ff;
+  padding: 1rem;
+  text-align: left;
+}
+
+.created-event-codes > p { margin: 0.2rem 0 0.7rem; color: #64748b; font-size: 0.78rem; }
+.created-event-codes > div { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.6rem; border-top: 1px solid #cfdef1; padding: 0.65rem 0; }
+.created-event-codes span { font-size: 0.78rem; font-weight: 700; }
+.created-event-codes code { border-radius: 0.4rem; background: #fff; padding: 0.35rem 0.55rem; color: #0b4fa8; font-size: 1rem; font-weight: 900; letter-spacing: 0.12em; }
+.created-event-codes button { margin: 0; background: transparent; padding: 0.35rem; color: #1769e0; font-size: 0.75rem; font-weight: 800; }
+
+@media (max-width: 600px) {
+  .created-event-codes > div { grid-template-columns: 1fr auto; }
+  .created-event-codes button { grid-column: 1 / -1; justify-self: start; }
+}

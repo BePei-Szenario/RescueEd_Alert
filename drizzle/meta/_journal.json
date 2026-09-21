@@ -169,6 +169,20 @@
       "when": 1789761038434,
       "tag": "0023_mature_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789967608135,
+      "tag": "0024_whole_tattoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1789969133685,
+      "tag": "0025_cooing_shard",
+      "breakpoints": true
     }
   ]
 }

@@ -1,15 +1,16 @@
 import {sql} from "drizzle-orm";
 import {getDb} from "@/db";
-import {ownedEvent} from "@/lib/event-access";
+import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {id,tokenHash} from "@/lib/security";
 
 export async function POST(request:Request,{params}:{params:Promise<{eventId:string}>}){
  try{
   const bad=rejectCrossSiteMutation(request);if(bad)return bad;
-  const {eventId}=await params,{user,event}=await ownedEvent(eventId);
-  if(!user)return Response.json({error:"Bitte zuerst anmelden."},{status:401});
+  const {eventId}=await params,authorization=await ownedEvent(eventId),{event,permissions}=authorization;
+  if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});
   if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
+  if(!permissions?.manageHelpers)return Response.json({error:"Dieser Event-Zugang darf keine Helfer anlegen."},{status:403});
   const body=await request.json() as {firstName?:string;lastName?:string;qualification?:string};
   const firstName=body.firstName?.trim(),lastName=body.lastName?.trim(),qualification=body.qualification?.trim();
   if(!firstName||!lastName||!qualification)return Response.json({error:"Bitte Vorname, Nachname und Qualifikation angeben."},{status:400});
