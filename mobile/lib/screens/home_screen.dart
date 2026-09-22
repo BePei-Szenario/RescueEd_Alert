@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../app_version.dart';
 import '../legal_documents.dart';
-import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -10,13 +9,12 @@ class HomeScreen extends StatelessWidget {
     required this.api,
     required this.onLogin,
     required this.onScan,
-    required this.onConsumerLogin,
     required this.onRegister,
     required this.onCodeLogin,
   });
   final ApiClient api;
   final VoidCallback onLogin, onScan;
-  final VoidCallback onConsumerLogin, onRegister;
+  final VoidCallback onRegister;
   final VoidCallback onCodeLogin;
 
   Future<void> _showLegal(BuildContext context, String slug) async {
@@ -65,22 +63,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xff061d3a),
-    appBar: AppBar(
-      backgroundColor: const Color(0xff061d3a),
-      elevation: 0,
-      actions: [
-        TextButton.icon(
-          style: TextButton.styleFrom(foregroundColor: Colors.white),
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => SettingsScreen(api: api)),
-          ),
-          icon: const Icon(Icons.settings_outlined),
-          label: const Text('Einstellungen'),
-        ),
-        const SizedBox(width: 12),
-      ],
-    ),
+    appBar: AppBar(backgroundColor: const Color(0xff061d3a), elevation: 0),
     body: SafeArea(
       child: CustomScrollView(
         slivers: [
@@ -141,39 +124,22 @@ class HomeScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     height: 56,
-                    child: FilledButton.icon(
-                      onPressed: onRegister,
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('Registrieren'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: OutlinedButton.icon(
-                      onPressed: onConsumerLogin,
-                      icon: const Icon(Icons.person_outline),
-                      label: const Text('Privatkonto anmelden'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xff7891ad)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
                     child: OutlinedButton.icon(
                       onPressed: onLogin,
-                      icon: const Icon(Icons.admin_panel_settings_outlined),
-                      label: const Text('Organisations-Login'),
+                      icon: const Icon(Icons.person_outline),
+                      label: const Text('Anmelden'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Color(0xff7891ad)),
                       ),
                     ),
+                  ),
+                  TextButton(
+                    onPressed: onRegister,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xff9fc8ff),
+                    ),
+                    child: const Text('Hier können Sie sich registrieren'),
                   ),
                   const SizedBox(height: 24),
                   const Text(

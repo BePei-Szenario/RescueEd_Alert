@@ -5,12 +5,13 @@ import {eventAccessCodes,eventAccessSessions,eventAdministrators,events} from "@
 import {currentUser} from "@/lib/session";
 import {tokenHash} from "@/lib/security";
 
-export type EventAccessRole="helper_recorder"|"alarm_operator"|"event_manager";
+export type EventAccessRole="helper_attendance"|"helper_recorder"|"alarm_operator"|"event_manager";
 export type EventPermissions={viewHelpers:boolean;manageHelpers:boolean;viewOperations:boolean;assignHelpers:boolean;manageAssignments:boolean;alarm:boolean;viewDetails:boolean;viewQr:boolean;exportHelpers:boolean;deleteEvent:boolean};
 
 const fullPermissions:EventPermissions={viewHelpers:true,manageHelpers:true,viewOperations:true,assignHelpers:true,manageAssignments:true,alarm:true,viewDetails:true,viewQr:true,exportHelpers:true,deleteEvent:true};
 
 export function permissionsForRole(role:EventAccessRole):EventPermissions{
+ if(role==="helper_attendance")return {viewHelpers:false,manageHelpers:false,viewOperations:false,assignHelpers:false,manageAssignments:false,alarm:false,viewDetails:false,viewQr:false,exportHelpers:false,deleteEvent:false};
  if(role==="helper_recorder")return {viewHelpers:true,manageHelpers:true,viewOperations:false,assignHelpers:false,manageAssignments:false,alarm:false,viewDetails:false,viewQr:false,exportHelpers:false,deleteEvent:false};
  if(role==="alarm_operator")return {viewHelpers:false,manageHelpers:false,viewOperations:true,assignHelpers:true,manageAssignments:false,alarm:true,viewDetails:false,viewQr:false,exportHelpers:false,deleteEvent:false};
  return {viewHelpers:true,manageHelpers:true,viewOperations:true,assignHelpers:true,manageAssignments:true,alarm:true,viewDetails:false,viewQr:false,exportHelpers:true,deleteEvent:false};

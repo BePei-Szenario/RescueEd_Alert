@@ -8,12 +8,14 @@ class LoginScreen extends StatefulWidget {
     required this.api,
     required this.onBack,
     required this.onAuthenticated,
-    this.consumer = false,
+    required this.onForgotPassword,
+    required this.onRegister,
   });
   final ApiClient api;
   final VoidCallback onBack;
   final Future<void> Function() onAuthenticated;
-  final bool consumer;
+  final VoidCallback onForgotPassword;
+  final VoidCallback onRegister;
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -25,6 +27,15 @@ class _LoginScreenState extends State<LoginScreen> {
   LoginChallenge? challenge;
   bool busy = false;
   String? error;
+
+  @override
+  void dispose() {
+    email.dispose();
+    password.dispose();
+    code.dispose();
+    super.dispose();
+  }
+
   Future<void> submit() async {
     setState(() {
       busy = true;
@@ -32,11 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       if (challenge == null) {
-        final next = await widget.api.login(
-          email.text.trim(),
-          password.text,
-          consumer: widget.consumer,
-        );
+        final next = await widget.api.login(email.text.trim(), password.text);
         setState(() => challenge = next);
       } else {
         await widget.api.verifyCode(challenge!.challenge, code.text.trim());
@@ -56,87 +63,125 @@ class _LoginScreenState extends State<LoginScreen> {
         onPressed: widget.onBack,
         icon: const Icon(Icons.arrow_back),
       ),
-      title: Text(
-        widget.consumer ? 'Privatkonto anmelden' : 'Organisations-Login',
-      ),
+      title: const Text('Anmelden'),
     ),
-    body: ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 30),
-        const Icon(Icons.shield_outlined, color: Color(0xff146ee8), size: 58),
-        const SizedBox(height: 16),
-        Text(
-          challenge == null ? 'Willkommen zurück' : 'Sicherheitscode',
-          textAlign: TextAlign.center,
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+    body: Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: AutofillGroup(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.shield_outlined,
+                      color: Color(0xff146ee8),
+                      size: 52,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      challenge == null
+                          ? 'Willkommen zurück'
+                          : 'Sicherheitscode',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      challenge == null
+                          ? 'Ein Login für Privatpersonen und Organisationen.'
+                          : 'Gib den per E-Mail gesendeten sechsstelligen Sicherheitscode ein.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 28),
+                    if (challenge == null) ...[
+                      TextField(
+                        controller: email,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        decoration: const InputDecoration(
+                          labelText: 'E-Mail-Adresse',
+                          prefixIcon: Icon(Icons.mail_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      PasswordField(
+                        controller: password,
+                        labelText: 'Passwort',
+                        prefixIcon: Icons.lock_outline,
+                        autofillHints: const [AutofillHints.password],
+                      ),
+                    ] else ...[
+                      TextField(
+                        controller: code,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Sicherheitscode',
+                          prefixIcon: Icon(Icons.key),
+                        ),
+                      ),
+                      if (challenge!.previewCode != null)
+                        Text(
+                          'Lokaler Testcode: ${challenge!.previewCode}',
+                          style: const TextStyle(color: Color(0xff146ee8)),
+                        ),
+                    ],
+                    if (error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(
+                          error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: busy ? null : submit,
+                        child: Text(
+                          busy
+                              ? 'Bitte warten …'
+                              : challenge == null
+                              ? 'Anmelden'
+                              : 'Sicherheitscode bestätigen',
+                        ),
+                      ),
+                    ),
+                    if (challenge == null) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          TextButton(
+                            onPressed: widget.onForgotPassword,
+                            child: const Text('Passwort vergessen?'),
+                          ),
+                          const Text('–'),
+                          TextButton(
+                            onPressed: widget.onRegister,
+                            child: const Text('Registrieren'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          challenge == null
-              ? widget.consumer
-                    ? 'Melde dich mit deinem Privatkonto an.'
-                    : 'Melde dich mit dem Organisationskonto an.'
-              : 'Gib den per E-Mail gesendeten sechsstelligen Sicherheitscode ein.',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 30),
-        if (challenge == null) ...[
-          TextField(
-            controller: email,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            decoration: const InputDecoration(
-              labelText: 'E-Mail-Adresse',
-              prefixIcon: Icon(Icons.mail_outline),
-            ),
-          ),
-          const SizedBox(height: 14),
-          PasswordField(
-            controller: password,
-            labelText: 'Passwort',
-            prefixIcon: Icons.lock_outline,
-            autofillHints: const [AutofillHints.password],
-          ),
-        ] else ...[
-          TextField(
-            controller: code,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Sicherheitscode',
-              prefixIcon: Icon(Icons.key),
-            ),
-          ),
-          if (challenge!.previewCode != null)
-            Text(
-              'Lokaler Testcode: ${challenge!.previewCode}',
-              style: const TextStyle(color: Color(0xff146ee8)),
-            ),
-        ],
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Text(error!, style: const TextStyle(color: Colors.red)),
-          ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 54,
-          child: FilledButton(
-            onPressed: busy ? null : submit,
-            child: Text(
-              busy
-                  ? 'Bitte warten …'
-                  : challenge == null
-                  ? 'Anmelden'
-                  : 'Sicherheitscode bestätigen',
-            ),
-          ),
-        ),
-      ],
+      ),
     ),
   );
 }

@@ -15,7 +15,7 @@ import {consumerEntitlement} from "@/lib/app-subscriptions";
 import type {EventAccessRole} from "@/lib/event-access";
 import {encryptEventAccessCode} from "@/lib/event-access-code-crypto";
 
-const eventAccessRoles:EventAccessRole[]=["helper_recorder","alarm_operator","event_manager"];
+const eventAccessRoles:EventAccessRole[]=["helper_attendance","helper_recorder","alarm_operator","event_manager"];
 function eventCode(){const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",bytes=crypto.getRandomValues(new Uint8Array(8));return [...bytes].map(value=>alphabet[value%alphabet.length]).join("")}
 
 export async function GET(){try{const owner=await currentUser();if(!owner||owner.role==="platform_owner"||owner.role==="platform_staff")return Response.json({error:"Bitte zuerst anmelden."},{status:401});const db=getDb(),memberships=await db.select({eventId:eventAdministrators.eventId}).from(eventAdministrators).where(and(eq(eventAdministrators.userId,owner.id),eq(eventAdministrators.role,"owner"),isNotNull(eventAdministrators.acceptedAt))),memberIds=memberships.map(row=>row.eventId);const access=owner.accountType==="organization"?undefined:memberIds.length?or(eq(events.ownerUserId,owner.id),inArray(events.id,memberIds)):eq(events.ownerUserId,owner.id);const rows=await db.select({id:events.id,name:events.name,eventDate:events.eventDate,helperLimit:events.helperLimit,priceCents:events.priceCents,status:events.status}).from(events).where(access?and(eq(events.organizationId,owner.organizationId),access):eq(events.organizationId,owner.organizationId)).orderBy(desc(events.createdAt));return Response.json({events:rows})}catch(error){console.error("event_list_failed",error);return Response.json({error:"Events konnten nicht geladen werden."},{status:500})}}

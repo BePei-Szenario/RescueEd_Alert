@@ -1,6 +1,6 @@
-import {and,eq,isNull,sql} from "drizzle-orm";
+import {and,eq,gt,isNull,sql} from "drizzle-orm";
 import {getDb} from "@/db";
-import {events,helperDevices,helpers} from "@/db/schema";
+import {eventAccessCodes,events,helperDevices,helpers} from "@/db/schema";
 import {attendanceWindowOpen} from "@/lib/attendance-window";
 import {effectiveEventEndDate} from "@/lib/event-duration";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
@@ -8,7 +8,14 @@ import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {id,tokenHash} from "@/lib/security";
 
 type Action="come"|"leave";
-async function publicEvent(eventId:string,code:string,action:Action){const [event]=await getDb().select().from(events).where(and(eq(events.id,eventId),eq(action==="come"?events.checkInCode:events.checkOutCode,code),eq(events.status,"active"))).limit(1);return event&&attendanceWindowOpen(event)?event:null}
+async function publicEvent(eventId:string,code:string,action:Action){
+ const db=getDb(),now=new Date();
+ const [event]=await db.select().from(events).where(and(eq(events.id,eventId),eq(action==="come"?events.checkInCode:events.checkOutCode,code),eq(events.status,"active"))).limit(1);
+ if(event&&attendanceWindowOpen(event))return event;
+ if(action==="leave")return null;
+ const [codeEvent]=await db.select({event:events}).from(eventAccessCodes).innerJoin(events,eq(events.id,eventAccessCodes.eventId)).where(and(eq(eventAccessCodes.eventId,eventId),eq(eventAccessCodes.role,"helper_attendance"),eq(eventAccessCodes.codeHash,await tokenHash(code.trim().toUpperCase().replace(/[\s-]/g,""))),gt(eventAccessCodes.expiresAt,now),isNull(eventAccessCodes.revokedAt),eq(events.status,"active"))).limit(1);
+ return codeEvent?.event&&attendanceWindowOpen(codeEvent.event)?codeEvent.event:null;
+}
 
 export async function GET(request:Request){
  try{const url=new URL(request.url),eventId=url.searchParams.get("eventId")||"",code=url.searchParams.get("code")||"",action=url.searchParams.get("mode")==="leave"?"leave":"come",event=await publicEvent(eventId,code,action);if(!event)return Response.json({error:"Dieser QR-Code ist ungültig oder nicht mehr aktiv."},{status:404});return Response.json({event:{id:event.id,name:event.name,eventDate:event.eventDate,endDate:effectiveEventEndDate(event.eventDate,event.startTime,event.endDate,event.endTime),startTime:event.startTime,endTime:event.endTime},action})}catch(error){console.error("attendance_info_failed",error);return Response.json({error:"Event konnte nicht geladen werden."},{status:500})}

@@ -22,7 +22,7 @@ let server;
 function secret(value){const salt=randomUUID(),digest=pbkdf2Sync(value,salt,210000,32,"sha256").toString("hex");return `pbkdf2-sha256$210000$${salt}$${digest}`}
 function availablePort(){return new Promise((resolve,reject)=>{const listener=net.createServer();listener.once("error",reject);listener.listen(0,"127.0.0.1",()=>{const address=listener.address();listener.close(()=>resolve(address.port))})})}
 async function ready(base,child){for(let attempt=0;attempt<100;attempt++){if(child.exitCode!==null)throw new Error(`Testserver endete mit ${child.exitCode}`);try{if((await fetch(base+"/api/health")).ok)return}catch{}await new Promise(resolve=>setTimeout(resolve,150))}throw new Error("Testserver nicht erreichbar.")}
-async function request(base,route,body,cookie){const response=await fetch(base+route,{method:body===undefined?"GET":"POST",headers:{origin:base,"content-type":"application/json",...(cookie?{cookie}:{})},body:body===undefined?undefined:JSON.stringify(body),redirect:"manual"});return {response,data:await response.json()}}
+async function request(base,route,body,cookie,mobile=false){const response=await fetch(base+route,{method:body===undefined?"GET":"POST",headers:{origin:base,"content-type":"application/json",...(cookie?{cookie}:{}),...(mobile?{"x-rescueed-client":"mobile"}:{})},body:body===undefined?undefined:JSON.stringify(body),redirect:"manual"});return {response,data:await response.json()}}
 
 try{
  const migrated=spawnSync(process.execPath,[path.join(root,"scripts/migrate-sqlite.mjs")],{cwd:root,env:{...process.env,DATABASE_PATH:database},encoding:"utf8",timeout:30000});
@@ -58,10 +58,26 @@ try{
  assert.equal(legacyOrganization.response.status,200,"Der bestehende Organisationslogin der App muss weiter funktionieren.");
  const appConsumer=await request(base,"/api/auth/login",{email:"consumer@example.invalid",password,area:"mobile_consumer"});
  assert.equal(appConsumer.response.status,200,"Der private App-Login muss weiter funktionieren.");
+ for(const email of ["organization@example.invalid","consumer@example.invalid"]){
+  const mobileLogin=await request(base,"/api/auth/login",{email,password,area:"mobile"});
+  assert.equal(mobileLogin.response.status,200,`Gemeinsamer App-Login für ${email} fehlgeschlagen.`);
+  const user=users.find(entry=>entry.email===email);
+  const message=db.prepare("SELECT payload_json FROM email_outbox WHERE user_id=? AND type='mfa' ORDER BY created_at DESC LIMIT 1").get(user.id);
+  const code=JSON.parse(message.payload_json).securityCode;
+  const verified=await request(base,"/api/auth/mfa/verify",{challenge:mobileLogin.data.challenge,code});
+  assert.equal(verified.response.status,200,`App-MFA für ${email} fehlgeschlagen.`);
+  const cookie=verified.response.headers.get("set-cookie")?.split(";")[0];
+  const profile=await request(base,"/api/auth/me",undefined,cookie,true);
+  assert.equal(profile.data.accountType,user.accountType,`Falscher Kontotyp für ${email}.`);
+ }
+ const operatorMobile=await request(base,"/api/auth/login",{email:"operator@example.invalid",password,area:"mobile"});
+ assert.equal(operatorMobile.response.status,403,"Die interne Unternehmerplattform darf nicht über den App-Login geöffnet werden.");
  db.close();
  process.stdout.write("Gemeinsamer Login-Test bestanden: Unternehmer, Organisation, MFA-Weiterleitung und App-only-Sperre.\n");
 }finally{
  if(server&&server.exitCode===null){server.kill();await new Promise(resolve=>{server.once("exit",resolve);setTimeout(resolve,3000)})}
  const resolved=path.resolve(temporary);
- if(resolved.startsWith(path.resolve(os.tmpdir())+path.sep)&&path.basename(resolved).startsWith("rescueed-unified-login-test-"))await rm(resolved,{recursive:true,force:true});
+ if(resolved.startsWith(path.resolve(os.tmpdir())+path.sep)&&path.basename(resolved).startsWith("rescueed-unified-login-test-")){
+  try{await rm(resolved,{recursive:true,force:true,maxRetries:2,retryDelay:100})}catch(error){if(process.platform!=="win32"||error?.code!=="EBUSY")throw error}
+ }
 }

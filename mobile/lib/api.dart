@@ -73,15 +73,11 @@ class ApiClient {
     ),
   );
 
-  Future<LoginChallenge> login(
-    String email,
-    String password, {
-    bool consumer = false,
-  }) async {
+  Future<LoginChallenge> login(String email, String password) async {
     final data = await post('/api/auth/login', {
       'email': email,
       'password': password,
-      'area': consumer ? 'mobile_consumer' : 'customer',
+      'area': 'mobile',
     });
     return LoginChallenge(
       data['challenge'] as String,
@@ -117,6 +113,7 @@ class ApiClient {
         ? null
         : RegExp(r'rescueed_event_session=([^;]+)').firstMatch(cookie);
     final data = _decode(response);
+    if (data['flow'] == 'helper_attendance') return data;
     if (match == null) {
       throw ApiException(
         'Der Event-Zugang konnte nicht gespeichert werden.',

@@ -363,6 +363,15 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
               ),
               const SizedBox(height: 8),
               _AccessRoleOption(
+                title: 'Helferlogin',
+                description:
+                    'Helfer checken sich wie über den QR-Code selbst ein. Der gemeinsame Code gilt für das gesamte Event bis zur maximalen Helferzahl.',
+                value: accessRoles.contains('helper_attendance'),
+                onChanged: (selected) => setState(() {
+                  _setAccessRole('helper_attendance', selected);
+                }),
+              ),
+              _AccessRoleOption(
                 title: 'Nur Helfererfassung',
                 description:
                     'Helfer anzeigen, anlegen und ausbuchen – ohne Einteilung oder Alarmierung.',
@@ -548,6 +557,7 @@ String _money(int cents) =>
     '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
 
 String _accessRoleLabel(dynamic role) => switch (role) {
+  'helper_attendance' => 'Helferlogin',
   'helper_recorder' => 'Nur Helfererfassung',
   'alarm_operator' => 'Nur Alarmierungsplattform',
   'event_manager' => 'Alarmierung mit Verwaltung',

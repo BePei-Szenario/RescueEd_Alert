@@ -1219,6 +1219,7 @@ String _helperSubtitle(Map<String, dynamic> h) {
 }
 
 String _eventAccessRoleLabel(dynamic role) => switch (role) {
+  'helper_attendance' => 'Helferlogin',
   'helper_recorder' => 'Nur Helfererfassung',
   'alarm_operator' => 'Nur Alarmierungsplattform',
   'event_manager' => 'Alarmierung mit Verwaltung',

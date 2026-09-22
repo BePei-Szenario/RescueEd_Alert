@@ -16,6 +16,10 @@ export async function POST(request:Request){
   const now=new Date(),db=getDb(),codeHash=await tokenHash(code);
   const [access]=await db.select({id:eventAccessCodes.id,eventId:eventAccessCodes.eventId,role:eventAccessCodes.role,expiresAt:eventAccessCodes.expiresAt}).from(eventAccessCodes).innerJoin(events,eq(events.id,eventAccessCodes.eventId)).where(and(eq(eventAccessCodes.codeHash,codeHash),gt(eventAccessCodes.expiresAt,now),isNull(eventAccessCodes.revokedAt),eq(events.status,"active"))).limit(1);
   if(!access)return Response.json({error:"Event-Code ungültig oder abgelaufen."},{status:401});
+  if(access.role==="helper_attendance"){
+   await db.update(eventAccessCodes).set({lastUsedAt:now}).where(eq(eventAccessCodes.id,access.id));
+   return Response.json({ok:true,flow:"helper_attendance",eventId:access.eventId},{headers:{"cache-control":"no-store"}});
+  }
   const raw=crypto.randomUUID()+crypto.randomUUID(),sessionExpiry=new Date(Math.min(access.expiresAt.getTime(),now.getTime()+8*60*60_000));
   await db.batch([db.insert(eventAccessSessions).values({id:id("eas"),accessCodeId:access.id,tokenHash:await tokenHash(raw),expiresAt:sessionExpiry,createdAt:now}),db.update(eventAccessCodes).set({lastUsedAt:now}).where(eq(eventAccessCodes.id,access.id))]);
   const secure=new URL(request.url).protocol==="https:"||process.env.NODE_ENV==="production"?"; Secure":"";
