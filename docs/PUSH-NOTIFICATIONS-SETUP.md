@@ -73,7 +73,7 @@ Diese Punkte müssen vor Veröffentlichung durch die anwaltliche Prüfung in den
 - Klarstellen, dass keine Namen, Qualifikationen, Eventbezeichnungen, Alarmtexte oder Gesundheitsdaten in der Push-Nachricht an Google oder Apple übermittelt werden.
 - Zweck: Zustellung und technische Absicherung von Alarmhinweisen; Rechtsgrundlage und Rollenaufteilung anwaltlich festlegen.
 - Drittlandtransfers, Garantien, Verträge und aktuelle Anbieteranschriften von Google/Firebase und Apple anhand der tatsächlich abgeschlossenen Kontoverträge eintragen.
-- Löschung beschreiben: bei Auschecken beziehungsweise Ende des Helferzugangs; sofortige Deaktivierung technisch ungültiger Tokens; Backuplaufzeiten berücksichtigen.
+- Löschung beschreiben: bei Auschecken beziehungsweise spätestens mit der automatischen Helferdatenlöschung 30 Tage nach dem tatsächlichen Eventende; sofortige Deaktivierung technisch ungültiger Tokens; Backuplaufzeiten berücksichtigen.
 - Auf Widerruf der Systemberechtigung in Android/iOS und die weiterhin bestehende organisatorische Rückfallebene hinweisen.
 
 ### AVV und Unterauftragnehmerliste

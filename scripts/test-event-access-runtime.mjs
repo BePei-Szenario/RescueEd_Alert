@@ -45,11 +45,23 @@ try{
   assert.equal((await request(`/api/events/${eventId}/alerts`,{},helperCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/qr?kind=come`,{},helperCookie)).status,403);
 
+  const assignmentId=`asg_${randomUUID()}`;
+  db.prepare("INSERT INTO assignments (id,event_id,name,created_at) VALUES (?,?,?,?)").run(assignmentId,eventId,"Alarm-Testmittel",now);
+  db.prepare("INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,phone,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(`hlp_${randomUUID()}`,eventId,assignmentId,"Geheime Person","Geheime","Person","NotSan","+49 000",hash(randomUUID()),"qr",now);
   const alarmCookie=await login(codeFor.alarm_operator);
   assert.ok(alarmCookie);
+  const alarmDetail=await request(`/api/events/${eventId}`,{},alarmCookie),alarmPayload=await alarmDetail.json();
+  assert.equal(alarmDetail.status,200);
+  assert.equal(alarmPayload.helpers,undefined,"Alarmierungsrollen dürfen keine Helferidentitäten erhalten.");
+  assert.equal(JSON.stringify(alarmPayload).includes("Geheime Person"),false);
+  const alarmUnit=alarmPayload.assignments.find(item=>item.id===assignmentId);
+  assert.equal(alarmUnit.activeHelperCount,1);
+  assert.equal(alarmUnit.activeQrHelperCount,1);
   assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({firstName:"Nicht",lastName:"Erlaubt",qualification:"Test"})},alarmCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/assignments`,{method:"POST",body:JSON.stringify({name:"Nicht erlaubt"})},alarmCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/alerts`,{},alarmCookie)).status,200);
+  for(let attempt=0;attempt<12;attempt++)assert.equal((await request(`/api/events/${eventId}/alerts`,{method:"POST",body:JSON.stringify({assignmentIds:[assignmentId],message:`Test ${attempt}`})},alarmCookie)).status,201);
+  assert.equal((await request(`/api/events/${eventId}/alerts`,{method:"POST",body:JSON.stringify({assignmentIds:[assignmentId],message:"Zu viel"})},alarmCookie)).status,429,"Alarmierungsrollen müssen nach zwölf Alarmen pro Minute gedrosselt werden.");
 
   const managerCookie=await login(codeFor.event_manager);
   assert.ok(managerCookie);

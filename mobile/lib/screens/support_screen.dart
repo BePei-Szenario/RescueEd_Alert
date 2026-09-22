@@ -45,11 +45,12 @@ class _SupportScreenState extends State<SupportScreen> {
         '/api/support/tickets$query',
         bearer: widget.helperToken,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           tickets = data['tickets'] as List? ?? [];
           error = null;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => error = e.toString());
     }
@@ -67,10 +68,11 @@ class _SupportScreenState extends State<SupportScreen> {
       subject.clear();
       description.clear();
       await load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Ticket wurde erstellt.')));
+      }
     } catch (e) {
       if (mounted) setState(() => error = e.toString());
     } finally {
@@ -157,10 +159,11 @@ class _SupportScreenState extends State<SupportScreen> {
                       if (dialogContext.mounted) Navigator.pop(dialogContext);
                       await load();
                     } catch (e) {
-                      if (dialogContext.mounted)
+                      if (dialogContext.mounted) {
                         ScaffoldMessenger.of(
                           dialogContext,
                         ).showSnackBar(SnackBar(content: Text('$e')));
+                      }
                     }
                   },
                   child: const Text('Antwort senden'),

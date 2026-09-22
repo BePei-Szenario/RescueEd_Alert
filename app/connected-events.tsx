@@ -1,6 +1,7 @@
 "use client";
 import {FormEvent,useEffect,useState} from "react";
 import Link from "next/link";
+import {useRouter} from "next/navigation";
 import {ArrowRight,CalendarDays,Check,FileText,KeyRound,LogOut,Plus,Trash2,Users} from "lucide-react";
 import {RescueEdLogo} from "@/components/brand-logo";
 import {PasswordField} from "@/components/password-field";
@@ -24,11 +25,12 @@ type LegalReview={required:boolean;available:boolean;canConfirm:boolean};
 function Brand(){return <div className="flex items-center gap-3"><RescueEdLogo/><div><b>RescueEd Alert</b><p>Einchecken · Einteilen · Alarmieren</p></div></div>}
 
 export function ConnectedEvents({open,create,logout}:{open:(eventId:string)=>void;create:()=>void;logout:()=>void}){
+ const router=useRouter();
  const [events,setEvents]=useState<EventRow[]>([]),[loading,setLoading]=useState(true),[legal,setLegal]=useState<LegalDocument|null>(null),[legalLoading,setLegalLoading]=useState<"impressum"|"datenschutz"|"">(""),[deleteOpen,setDeleteOpen]=useState(false),[deletePassword,setDeletePassword]=useState(""),[deleteConfirmed,setDeleteConfirmed]=useState(false),[deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState(""),[accountDeleted,setAccountDeleted]=useState(false);
  const [organizationType,setOrganizationType]=useState<OrganizationType|null>(null);
  const [accountRole,setAccountRole]=useState<string>("");
  const [legalReview,setLegalReview]=useState<LegalReview|null>(null);
- const createWithLegalCheck=()=>{if(legalReview?.required){location.href="/rechtliches/aktualisierung";return}create()};
+ const createWithLegalCheck=()=>{if(legalReview?.required){router.push("/rechtliches/aktualisierung");return}create()};
  useEffect(()=>{fetch("/api/events").then(async r=>{if(r.status===401){logout();return}const d=await r.json() as {events?:EventRow[]};setEvents(d.events||[])}).finally(()=>setLoading(false))},[logout]);
  useEffect(()=>{fetch("/api/auth/me",{cache:"no-store"}).then(async r=>r.ok?r.json():null).then(raw=>{const data=raw as {role?:string;organization?:{organizationType?:OrganizationType|null};legalUpdateRequired?:boolean;legalUpdateAvailable?:boolean;legalCanConfirm?:boolean}|null;setOrganizationType(data?.organization?.organizationType??null);setAccountRole(data?.role??"");setLegalReview(data?{required:data.legalUpdateRequired===true,available:data.legalUpdateAvailable===true,canConfirm:data.legalCanConfirm===true}:null)}).catch(()=>{})},[]);
  async function openLegal(slug:"impressum"|"datenschutz"){

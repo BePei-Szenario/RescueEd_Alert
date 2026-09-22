@@ -210,10 +210,11 @@ class _OwnerScreenState extends State<OwnerScreen> {
       await widget.onLogout();
     } catch (e) {
       password.dispose();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Kontolöschung fehlgeschlagen: $e')),
         );
+      }
     }
   }
 
@@ -564,18 +565,12 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
   }
 
   Future<void> sendAlarm() async {
-    final helpers = (data?['helpers'] as List? ?? []);
     final units = (data?['assignments'] as List? ?? [])
         .where(
           (u) =>
               u['removedAt'] == null &&
               u['operationalStatus'] != 'deployed' &&
-              helpers.any(
-                (h) =>
-                    h['removedAt'] == null &&
-                    h['registrationSource'] == 'qr' &&
-                    h['assignmentId'] == u['id'],
-              ),
+              ((u['activeQrHelperCount'] as num?)?.toInt() ?? 0) > 0,
         )
         .toList();
     final selected = <String>{};
@@ -879,11 +874,15 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
     final hasAlertableUnit = units.any(
       (u) =>
           u['operationalStatus'] != 'deployed' &&
-          helpers.any(
-            (h) =>
-                h['registrationSource'] == 'qr' && h['assignmentId'] == u['id'],
-          ),
+          ((u['activeQrHelperCount'] as num?)?.toInt() ?? 0) > 0,
     );
+    final visibleHelperCount = allowed('viewHelpers')
+        ? helpers.length
+        : units.fold<int>(
+            0,
+            (sum, unit) =>
+                sum + ((unit['activeHelperCount'] as num?)?.toInt() ?? 0),
+          );
     return Scaffold(
       appBar: AppBar(
         title: Text(event?['name'] ?? 'Event'),
@@ -951,7 +950,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${helpers.length} Helfer anwesend · ${units.where((u) => u['operationalStatus'] == 'deployed').length} Einsatzmittel im Einsatz',
+                          '$visibleHelperCount Helfer anwesend · ${units.where((u) => u['operationalStatus'] == 'deployed').length} Einsatzmittel im Einsatz',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -985,9 +984,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                           _helperName(h),
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Text(
-                          _helperSubtitle(h),
-                        ),
+                        subtitle: Text(_helperSubtitle(h)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1079,9 +1076,11 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                       ),
                     ),
                   ...units.map((u) {
-                    final assigned = helpers
-                            .where((h) => h['assignmentId'] == u['id'])
-                            .length,
+                    final assigned = allowed('viewHelpers')
+                            ? helpers
+                                  .where((h) => h['assignmentId'] == u['id'])
+                                  .length
+                            : ((u['activeHelperCount'] as num?)?.toInt() ?? 0),
                         deployed = u['operationalStatus'] == 'deployed';
                     return Card(
                       child: ListTile(

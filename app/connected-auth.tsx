@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
 import Link from "next/link";
+import {useRouter} from "next/navigation";
 import {ArrowRight,Building2,Check,KeyRound,LockKeyhole,Mail,MapPin,Users} from "lucide-react";
 import {RescueEdLogo} from "@/components/brand-logo";
 import {PasswordField} from "@/components/password-field";
@@ -39,6 +40,7 @@ export function ConnectedRegister({back}:{back:()=>void;submit:()=>void}){
 }
 
 export function ConnectedLogin({back,register}:{back:()=>void;register:()=>void}){
+ const router=useRouter();
  const [phase,setPhase]=useState<"login"|"mfa"|"event-code">("login"),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[challenge,setChallenge]=useState(""),[hint,setHint]=useState(""),[error,setError]=useState("");
  async function login(e:React.FormEvent<HTMLFormElement>){
   e.preventDefault();setError("");
@@ -49,9 +51,9 @@ export function ConnectedLogin({back,register}:{back:()=>void;register:()=>void}
  }
  async function verify(e:React.FormEvent<HTMLFormElement>){
   e.preventDefault();const f=new FormData(e.currentTarget),r=await fetch("/api/auth/mfa/verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challenge,code:f.get("code")})}),d=await r.json() as {error?:string;redirectTo?:string};
-  if(!r.ok){setError(d.error||"Sicherheitscode ungültig.");return}window.location.assign(d.redirectTo==="/unternehmer"?"/unternehmer":"/");
+  if(!r.ok){setError(d.error||"Sicherheitscode ungültig.");return}router.replace(d.redirectTo==="/unternehmer"?"/unternehmer":"/");
  }
- async function eventLogin(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setError("");const f=new FormData(e.currentTarget),r=await fetch("/api/auth/event-code",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code:f.get("eventCode")})}),d=await r.json() as {error?:string};if(!r.ok){setError(d.error||"Event-Code ungültig.");return}window.location.assign("/")}
+ async function eventLogin(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setError("");const f=new FormData(e.currentTarget),r=await fetch("/api/auth/event-code",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code:f.get("eventCode")})}),d=await r.json() as {error?:string};if(!r.ok){setError(d.error||"Event-Code ungültig.");return}router.replace("/")}
  function switchAccount(e:React.MouseEvent<HTMLButtonElement>){
   const form=e.currentTarget.form,emailInput=form?.elements.namedItem("organizationEmail") as HTMLInputElement|null,passwordInput=form?.elements.namedItem("organizationPassword") as HTMLInputElement|null;
   if(emailInput)emailInput.value="";

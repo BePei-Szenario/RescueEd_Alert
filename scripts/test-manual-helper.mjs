@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {createHash, randomUUID} from "node:crypto";
+import {createHash, randomBytes, randomUUID} from "node:crypto";
 import {spawn, spawnSync} from "node:child_process";
 import {mkdtemp, rm} from "node:fs/promises";
 import net from "node:net";
@@ -17,6 +17,7 @@ const userId=`usr-${randomUUID()}`;
 const eventId=`evt-${randomUUID()}`;
 const unitId=`asn-${randomUUID()}`;
 const emptyUnitId=`asn-${randomUUID()}`;
+const pushTokenKey=randomBytes(32).toString("base64");
 let server;
 
 function availablePort(){return new Promise((resolve,reject)=>{const listener=net.createServer();listener.once("error",reject);listener.listen(0,"127.0.0.1",()=>{const address=listener.address();listener.close(()=>resolve(address.port))})})}
@@ -36,7 +37,7 @@ try{
  db.prepare("INSERT INTO assignments (id,event_id,name,created_at) VALUES (?,?,?,?)").run(unitId,eventId,"RTW Test",now);
  db.prepare("INSERT INTO assignments (id,event_id,name,created_at) VALUES (?,?,?,?)").run(emptyUnitId,eventId,"Nur manuell",now);
  const port=await availablePort(),base=`http://127.0.0.1:${port}`,cookie=`rescueed_session=${rawSession}`;
- server=spawn(process.execPath,[path.join(root,"node_modules/next/dist/bin/next"),"start","--hostname","127.0.0.1","--port",String(port)],{cwd:root,env:{...process.env,DATABASE_PATH:database,NODE_ENV:"production",PUBLIC_BASE_URL:base},stdio:"ignore"});
+ server=spawn(process.execPath,[path.join(root,"node_modules/next/dist/bin/next"),"start","--hostname","127.0.0.1","--port",String(port)],{cwd:root,env:{...process.env,DATABASE_PATH:database,PUSH_TOKEN_ENCRYPTION_KEY:pushTokenKey,NODE_ENV:"production",PUBLIC_BASE_URL:base},stdio:"ignore"});
  await ready(base,server);
  const manual=await request(base,`/api/events/${eventId}/helpers`,cookie,"POST",{firstName:"Mara",lastName:"Muster",qualification:"SanHelfer"});
  assert.equal(manual.status,201,JSON.stringify(manual.data));
@@ -46,8 +47,21 @@ try{
  const assignManual=await request(base,`/api/events/${eventId}/helpers/${manual.data.helperId}`,cookie,"PATCH",{assignmentId:unitId});
  assert.equal(assignManual.status,409,JSON.stringify(assignManual.data));
  assert.equal((await request(base,`/api/events/${eventId}/alerts`,cookie,"POST",{assignmentIds:[unitId]})).status,400);
- const qrHelperId=`hlp-${randomUUID()}`;
- db.prepare("INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?,?,?,?)").run(qrHelperId,eventId,unitId,"Quirin QR","Quirin","QR","SanHelfer",hash(randomUUID()),"qr",now);
+ const qrHelperId=`hlp-${randomUUID()}`,rawHelperToken=randomUUID()+randomUUID();
+ db.prepare("INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?,?,?,?)").run(qrHelperId,eventId,unitId,"Quirin QR","Quirin","QR","SanHelfer",hash(rawHelperToken),"qr",now);
+ for(let index=0;index<4;index++){
+  const response=await fetch(`${base}/api/mobile/push-device`,{method:"POST",headers:{origin:base,"content-type":"application/json",authorization:`Bearer ${rawHelperToken}`},body:JSON.stringify({eventId,token:`test-fcm-device-token-${index}-${randomUUID()}`,platform:"android",alarmTone:"piep_piep"})});
+  assert.equal(response.status,200,await response.text());
+ }
+ assert.equal(db.prepare("SELECT count(*) AS n FROM helper_devices WHERE helper_id=? AND disabled_at IS NULL").get(qrHelperId).n,3,"Pro Helfer dürfen höchstens drei aktive Push-Geräte verbleiben.");
+ const invalidPush=await fetch(`${base}/api/mobile/push-device`,{method:"POST",headers:{origin:base,"content-type":"application/json",authorization:`Bearer ${rawHelperToken}`},body:JSON.stringify({eventId,token:"zu kurz",platform:"android"})});
+ assert.equal(invalidPush.status,400);
+ for(let index=4;index<12;index++){
+  const response=await fetch(`${base}/api/mobile/push-device`,{method:"POST",headers:{origin:base,"content-type":"application/json",authorization:`Bearer ${rawHelperToken}`},body:JSON.stringify({eventId,token:`test-fcm-device-token-${index}-${randomUUID()}`,platform:"android"})});
+  assert.equal(response.status,200,await response.text());
+ }
+ const rateLimitedPush=await fetch(`${base}/api/mobile/push-device`,{method:"POST",headers:{origin:base,"content-type":"application/json",authorization:`Bearer ${rawHelperToken}`},body:JSON.stringify({eventId,token:`test-fcm-device-token-blocked-${randomUUID()}`,platform:"android"})});
+ assert.equal(rateLimitedPush.status,429);
  const alarm=await request(base,`/api/events/${eventId}/alerts`,cookie,"POST",{assignmentIds:[unitId]});
  assert.equal(alarm.status,201,JSON.stringify(alarm.data));
  assert.equal(alarm.data.alert.recipientCount,1);
@@ -56,7 +70,7 @@ try{
  assert.equal((await request(base,`/api/events/${eventId}/alerts`,cookie,"POST",{assignmentIds:[emptyUnitId]})).status,400);
  assert.equal(db.prepare("SELECT count(*) AS n FROM alert_recipients WHERE helper_id=?").get(manual.data.helperId).n,0);
  db.close();
- process.stdout.write("Helfer-Test bestanden: manuelle Anlage, keine Einteilung/Alarmierung, QR-Helfer weiterhin alarmierbar.\n");
+ process.stdout.write("Helfer-/Push-Test bestanden: manuelle Anlage bleibt nicht alarmierbar, QR-Helfer bleibt alarmierbar, Gerätecap und Rate-Limit greifen.\n");
 }finally{
  if(server&&server.exitCode===null){server.kill();await new Promise(resolve=>{server.once("exit",resolve);setTimeout(resolve,3000)})}
  const resolved=path.resolve(temporary);

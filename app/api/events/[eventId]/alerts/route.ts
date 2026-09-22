@@ -2,6 +2,7 @@ import {and,asc,eq,inArray,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
 import {alertAssignments,alertRecipients,alerts,assignments,helpers} from "@/db/schema";
 import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
+import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {id} from "@/lib/security";
 import {dispatchAlertPush} from "@/lib/push-notifications";
@@ -21,6 +22,8 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
  const bad=rejectCrossSiteMutation(request);if(bad)return bad;
  try{
   const {eventId}=await params,authorization=await ownedEvent(eventId),{user,event,access,permissions}=authorization;if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});if(!permissions?.alarm)return Response.json({error:"Dieser Event-Zugang darf nicht alarmieren."},{status:403});
+  const principalLimit=await consumeRateLimit({scope:"event-alarm-principal",subject:`${event.id}:${access?.id||user?.id||"unknown"}`,limit:12,windowMs:60_000,blockMs:5*60_000});if(!principalLimit.allowed)return rateLimited(principalLimit.retryAfterSeconds);
+  const networkLimit=await consumeRateLimit({scope:"event-alarm-network",subject:requestNetwork(request),limit:30,windowMs:60_000,blockMs:5*60_000});if(!networkLimit.allowed)return rateLimited(networkLimit.retryAfterSeconds);
   const body=await request.json() as {assignmentIds?:unknown;message?:unknown},assignmentIds=Array.isArray(body.assignmentIds)?[...new Set(body.assignmentIds.filter((value):value is string=>typeof value==="string"&&value.length>0))]:[],message=typeof body.message==="string"?body.message.trim():"";
   if(!assignmentIds.length||assignmentIds.length>50)return Response.json({error:"Bitte mindestens ein Sanitätsmittel auswählen."},{status:400});
   if(message.length>150)return Response.json({error:"Die Alarmmeldung darf höchstens 150 Zeichen enthalten."},{status:400});

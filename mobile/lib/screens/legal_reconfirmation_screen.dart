@@ -40,11 +40,12 @@ class _LegalReconfirmationScreenState extends State<LegalReconfirmationScreen> {
         loading = false;
       });
     } catch (reason) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = '$reason';
           loading = false;
         });
+      }
     }
   }
 
@@ -81,11 +82,12 @@ class _LegalReconfirmationScreenState extends State<LegalReconfirmationScreen> {
       });
       if (mounted) Navigator.pop(context, true);
     } catch (reason) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = '$reason';
           busy = false;
         });
+      }
     }
   }
 
