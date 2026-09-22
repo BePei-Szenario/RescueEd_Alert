@@ -15,7 +15,14 @@ export function eventDurationMinutes(startDate: string, startTime: string, endDa
   return start === null || end === null ? null : (end - start) / 60_000;
 }
 
-export const STANDARD_EVENT_MAX_MINUTES = 2 * 24 * 60;
+export const SHORT_EVENT_MAX_MINUTES = 2 * 24 * 60;
+export const STANDARD_EVENT_MAX_MINUTES = 5 * 24 * 60;
+
+export function eventPriceCents(helperLimit:number,durationMinutes:number):number {
+  const longEvent=durationMinutes>SHORT_EVENT_MAX_MINUTES;
+  if(longEvent)return helperLimit<=20?1799:1999;
+  return helperLimit<=20?599:999;
+}
 
 // Older events did not store an end date; their earlier overnight convention
 // treated an end time before the start time as the following day.

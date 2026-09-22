@@ -58,8 +58,35 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
   }
 
   int get helperCount => int.tryParse(helpers.text) ?? 0;
+  Duration? get eventDuration {
+    if (date == null || endDate == null || start == null || end == null) {
+      return null;
+    }
+    return DateTime.utc(
+      endDate!.year,
+      endDate!.month,
+      endDate!.day,
+      end!.hour,
+      end!.minute,
+    ).difference(
+      DateTime.utc(
+        date!.year,
+        date!.month,
+        date!.day,
+        start!.hour,
+        start!.minute,
+      ),
+    );
+  }
+
+  bool get usesFiveDayTariff =>
+      (eventDuration ?? Duration.zero) > const Duration(hours: 48);
   int get priceCents => complimentary || widget.consumer
       ? 0
+      : usesFiveDayTariff
+      ? helperCount <= 20
+            ? 1799
+            : 1999
       : helperCount <= 20
       ? 599
       : 999;
@@ -137,10 +164,10 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
       setState(() => error = 'Das Eventende muss nach dem Beginn liegen.');
       return;
     }
-    if (!unlimitedEventDuration && duration > const Duration(hours: 48)) {
+    if (!unlimitedEventDuration && duration > const Duration(days: 5)) {
       setState(
         () => error =
-            'Events dürfen höchstens 48 Stunden dauern. Für längere Events ist die Dauernutzer-Freigabe nötig.',
+            'Events dürfen höchstens 5 Tage dauern. Für längere Events ist die Dauernutzer-Freigabe nötig.',
       );
       return;
     }
@@ -338,7 +365,7 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                 child: Text(
                   unlimitedEventDuration
                       ? 'Dauernutzer: Events ohne Zeitlimit möglich.'
-                      : 'Maximal 48 Stunden pro Event.',
+                      : 'Maximal 5 Tage pro Event. Ab mehr als 2 Tagen gilt der 5-Tage-Tarif.',
                 ),
               ),
               const SizedBox(height: 12),
@@ -465,9 +492,7 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                               ? 'Im Monatsabo enthalten'
                               : complimentary
                               ? 'Kostenlose Nutzung freigeschaltet'
-                              : helperCount <= 20
-                              ? 'Event bis 20 Helfer'
-                              : 'Event ab 21 Helfer',
+                              : '${usesFiveDayTariff ? 'Über 2 bis 5 Tage' : 'Bis 2 Tage'} · ${helperCount <= 20 ? 'bis 20 Helfer' : 'ab 21 Helfer'}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
