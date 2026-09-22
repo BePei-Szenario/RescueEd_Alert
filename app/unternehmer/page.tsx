@@ -9,6 +9,7 @@ import {StaffDashboard} from "./staff-dashboard";
 import "./unternehmer.css";
 import "./owner-enhancements.css";
 import "./dashboard.css";
+import "./compact-layout.css";
 import "./billing-settings.css";
 import "./legal-settings.css";
 import "./customer-archive.css";

@@ -10,6 +10,7 @@ import {LogoutButton} from "../actions";
 import "../unternehmer.css";
 import "../owner-enhancements.css";
 import "../dashboard.css";
+import "../compact-layout.css";
 import "./archive.css";
 
 export const dynamic="force-dynamic";
