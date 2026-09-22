@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../session_store.dart';
+import 'qr_flow.dart';
 
 class EventCodeLoginScreen extends StatefulWidget {
   const EventCodeLoginScreen({
     super.key,
     required this.api,
+    required this.store,
     required this.onBack,
     required this.onAuthenticated,
+    required this.onHelperAuthenticated,
   });
 
   final ApiClient api;
+  final SessionStore store;
   final VoidCallback onBack;
   final Future<void> Function() onAuthenticated;
+  final Future<void> Function(HelperCredentials) onHelperAuthenticated;
 
   @override
   State<EventCodeLoginScreen> createState() => _EventCodeLoginScreenState();
@@ -44,7 +50,36 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
       error = null;
     });
     try {
-      await widget.api.loginWithEventCode(value);
+      final result = await widget.api.loginWithEventCode(value);
+      if (result['flow'] == 'helper_attendance') {
+        final eventId = result['eventId']?.toString() ?? '';
+        final attendanceCode = result['attendanceCode']?.toString() ?? value;
+        if (eventId.isEmpty) {
+          throw ApiException('Der Helferlogin ist unvollständig.', 500);
+        }
+        if (!mounted) return;
+        final credentials = await Navigator.push<HelperCredentials>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => QrAttendanceFlow(
+              api: widget.api,
+              store: widget.store,
+              initialUri: Uri(
+                path: '/event-attendance',
+                queryParameters: {
+                  'eventId': eventId,
+                  'mode': 'come',
+                  'code': attendanceCode,
+                },
+              ),
+            ),
+          ),
+        );
+        if (credentials != null) {
+          await widget.onHelperAuthenticated(credentials);
+        }
+        return;
+      }
       await widget.onAuthenticated();
     } catch (exception) {
       if (mounted) setState(() => error = exception.toString());
@@ -77,7 +112,7 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Keine E-Mail und kein Passwort erforderlich. Du siehst nur die für diesen Code freigegebenen Funktionen.',
+          'Keine E-Mail und kein Passwort erforderlich. Helfer können sich selbst einchecken; Bediencodes öffnen nur die freigegebenen Funktionen.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 30),

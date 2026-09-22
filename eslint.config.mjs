@@ -11,6 +11,10 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "output/**",
+    ".vinext/**",
+    "mobile/build/**",
+    "mobile/.dart_tool/**",
     "next-env.d.ts",
   ]),
   {
@@ -21,6 +25,20 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": "off",
       "react-hooks/purity": "off",
       "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  {
+    files: ["app/event-attendance/page.tsx", "app/rechtliches/**/page.tsx"],
+    rules: {
+      // These pages are also delivered as standalone public documents.
+      "@next/next/no-html-link-for-pages": "off",
+    },
+  },
+  {
+    files: ["app/connected-dashboard.tsx"],
+    rules: {
+      // QR previews use runtime blob/API URLs that the image optimizer cannot process.
+      "@next/next/no-img-element": "off",
     },
   },
 ]);

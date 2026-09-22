@@ -34,7 +34,7 @@ export async function POST(request:Request){
    const stored=storedDocuments.find(item=>item.documentKey===documentKey),fallback=legalDocumentDefaults[documentKey];
    return {documentKey,title:stored?.title||fallback.title,version:stored?.version||fallback.version,content:stored?.content||fallback.content,status:stored?.status||"draft"};
   });
-  const now=new Date(),retentionReviewAt=calendarYearRetentionEnd(now,3);
+  const now=new Date(),retentionReviewAt=calendarYearRetentionEnd(now,3),helperDeletionDeadline=new Date(now.getTime()+30*86400000);
   const eventMembers=user.accountType==="organization"?await db.select({id:users.id}).from(users).where(and(eq(users.organizationId,user.organizationId),eq(users.role,"organization_member"))):[];
   const archiveId=id("arc"),anonymousEmail=`deleted-${crypto.randomUUID()}@invalid.local`,deletedMemberPasswordHash=eventMembers.length?await hashSecret(crypto.randomUUID()+crypto.randomUUID()):"";
   await db.batch([
@@ -47,7 +47,7 @@ export async function POST(request:Request){
    db.delete(supportTickets).where(eq(supportTickets.requesterUserId,user.id)),
    db.delete(legalAcknowledgements).where(eq(legalAcknowledgements.userId,user.id)),
    db.delete(legalAcceptances).where(eq(legalAcceptances.userId,user.id)),
-   db.update(events).set({status:"cancelled",endedAt:now}).where(and(user.accountType==="organization"?eq(events.organizationId,user.organizationId):eq(events.ownerUserId,user.id),inArray(events.status,["draft","active"]))),
+   db.update(events).set({status:"cancelled",endedAt:now,deleteHelpersAfter:helperDeletionDeadline}).where(and(user.accountType==="organization"?eq(events.organizationId,user.organizationId):eq(events.ownerUserId,user.id),inArray(events.status,["draft","active"]))),
    ...eventMembers.flatMap(member=>[
     db.delete(sessions).where(eq(sessions.userId,member.id)),
     db.delete(securityTokens).where(eq(securityTokens.userId,member.id)),

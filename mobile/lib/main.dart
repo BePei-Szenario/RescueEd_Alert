@@ -14,6 +14,7 @@ import 'screens/qr_flow.dart';
 import 'screens/consumer_register_screen.dart';
 import 'screens/event_code_login_screen.dart';
 import 'screens/organization_register_screen.dart';
+import 'screens/password_forgotten_screen.dart';
 import 'screens/registration_choice_screen.dart';
 
 void main() {
@@ -154,6 +155,12 @@ class _RescueEdAppState extends State<RescueEdApp> {
     if (mounted) setState(() => mode = 'home');
   }
 
+  Future<void> _helperCodeAuthenticated(HelperCredentials session) async {
+    helperEventId = session.eventId;
+    helperToken = session.token;
+    if (mounted) setState(() => mode = 'helper');
+  }
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     navigatorKey: navigatorKey,
@@ -183,17 +190,18 @@ class _RescueEdAppState extends State<RescueEdApp> {
               api: api,
               onBack: () => setState(() => mode = 'home'),
               onAuthenticated: _ownerAuthenticated,
+              onForgotPassword: () =>
+                  setState(() => mode = 'passwordForgotten'),
+              onRegister: () => setState(() => mode = 'register'),
             ),
-            'consumerLogin' => LoginScreen(
+            'passwordForgotten' => PasswordForgottenScreen(
               api: api,
-              consumer: true,
-              onBack: () => setState(() => mode = 'home'),
-              onAuthenticated: _ownerAuthenticated,
+              onBack: () => setState(() => mode = 'login'),
             ),
             'consumerRegister' => ConsumerRegisterScreen(
               api: api,
               onBack: () => setState(() => mode = 'home'),
-              onDone: () => setState(() => mode = 'consumerLogin'),
+              onDone: () => setState(() => mode = 'login'),
             ),
             'organizationRegister' => OrganizationRegisterScreen(
               api: api,
@@ -208,8 +216,10 @@ class _RescueEdAppState extends State<RescueEdApp> {
             ),
             'eventCodeLogin' => EventCodeLoginScreen(
               api: api,
+              store: store,
               onBack: () => setState(() => mode = 'home'),
               onAuthenticated: _ownerAuthenticated,
+              onHelperAuthenticated: _helperCodeAuthenticated,
             ),
             'owner' => OwnerScreen(api: api, onLogout: _ownerLogout),
             'consumer' => OwnerScreen(
@@ -234,7 +244,6 @@ class _RescueEdAppState extends State<RescueEdApp> {
               api: api,
               onLogin: () => setState(() => mode = 'login'),
               onScan: _scan,
-              onConsumerLogin: () => setState(() => mode = 'consumerLogin'),
               onRegister: () => setState(() => mode = 'register'),
               onCodeLogin: () => setState(() => mode = 'eventCodeLogin'),
             ),

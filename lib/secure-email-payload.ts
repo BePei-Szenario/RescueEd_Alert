@@ -1,5 +1,7 @@
 
-type SensitiveMailType="mfa"|"registration_link"|"password_reset";
+export type EncryptedMailType="customer_contact"|"mfa"|"registration_link"|"password_reset"|"order_confirmation"|"event_deletion_summary"|"withdrawal_confirmation";
+export const OUTBOX_PAYLOAD_RETENTION_MS=7*24*60*60*1000;
+export function outboxPayloadExpiresAt(now:Date){return new Date(now.getTime()+OUTBOX_PAYLOAD_RETENTION_MS)}
 
 function bytesToBase64(bytes:Uint8Array){let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary)}
 function decodeKey(value:string){
@@ -9,7 +11,7 @@ function decodeKey(value:string){
 }
 function isLoopback(request:Request){const host=new URL(request.url).hostname.toLowerCase();return host==="localhost"||host==="127.0.0.1"||host==="[::1]"}
 
-export async function sensitiveEmailPayload(request:Request,rowId:string,type:SensitiveMailType,payload:string){
+export async function sensitiveEmailPayload(request:Request,rowId:string,type:EncryptedMailType,payload:string){
  const configured=process.env.EMAIL_PAYLOAD_KEY?.trim();
  if(!configured){
   if(isLoopback(request))return payload;

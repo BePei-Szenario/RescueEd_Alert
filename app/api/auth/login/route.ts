@@ -24,13 +24,14 @@ export async function POST(request:Request){
   const validPassword=await verifySecret(password,user?.passwordHash||DUMMY_HASH);
   const operator=user?.role==="platform_owner"||user?.role==="platform_staff";
   const organization=user?.accountType==="organization"&&(user.role==="customer"||user.role==="organization_member");
-  const allowedArea=area==="web"?operator||organization:area==="unternehmer"?operator:area==="mobile_consumer"?user?.accountType==="consumer":area==="customer"||area===undefined?organization:false;
+  const consumer=user?.accountType==="consumer";
+  const allowedArea=area==="web"?operator||organization:area==="unternehmer"?operator:area==="mobile"?organization||consumer:area==="mobile_consumer"?consumer:area==="customer"||area===undefined?organization:false;
   if(!user||user.status!=="active"||!validPassword)return Response.json({error:"Anmeldedaten sind ungültig."},{status:401});
   if(!allowedArea)return Response.json({error:area==="unternehmer"||area==="mobile_consumer"&&user.accountType==="organization"?"Dieses Konto gehört zur Organisationsanmeldung. Bitte dort anmelden.":user.role==="platform_owner"||user.role==="platform_staff"?"Dieses Konto gehört zur Unternehmerplattform. Bitte dort anmelden.":"Dieser Zugang ist nur in der App möglich."},{status:403});
   const issueLimit=await consumeRateLimit({scope:"mfa-issue-account",subject:user.id,limit:5,windowMs:10*60_000});
   if(!issueLimit.allowed)return rateLimited(issueLimit.retryAfterSeconds);
   await clearRateLimit("login-account-network",accountSubject);
-  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),challenge=crypto.randomUUID()+crypto.randomUUID(),now=new Date(),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail"),tokenId=id("sec"),challengeArea=area==="mobile_consumer"?"mobile_consumer":operator?"unternehmer":"customer";
+  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),challenge=crypto.randomUUID()+crypto.randomUUID(),now=new Date(),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail"),tokenId=id("sec"),challengeArea=consumer?"mobile_consumer":operator?"unternehmer":"customer";
   const payload=await sensitiveEmailPayload(request,mailId,"mfa",emailPayload({template:"security_code",securityCode:code,expiresAt:expiresAt.toISOString(),message:"Mit diesem Sicherheitscode schließen Sie Ihre Anmeldung bei RescueEd Alert ab."}));
   await db.batch([
    db.insert(securityTokens).values({id:tokenId,userId:user.id,purpose:"mfa",tokenHash:await tokenHash(code),challengeHash:await tokenHash(challenge),challengeArea,expiresAt,createdAt:now}),

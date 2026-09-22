@@ -14,9 +14,15 @@ class HelperCredentials {
 }
 
 class QrAttendanceFlow extends StatefulWidget {
-  const QrAttendanceFlow({super.key, required this.api, required this.store});
+  const QrAttendanceFlow({
+    super.key,
+    required this.api,
+    required this.store,
+    this.initialUri,
+  });
   final ApiClient api;
   final SessionStore store;
+  final Uri? initialUri;
   @override
   State<QrAttendanceFlow> createState() => _QrAttendanceFlowState();
 }
@@ -37,10 +43,12 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
   @override
   void initState() {
     super.initState();
-    if (debugAttendanceQr.isNotEmpty) {
+    final initial =
+        widget.initialUri ??
+        (debugAttendanceQr.isEmpty ? null : Uri.tryParse(debugAttendanceQr));
+    if (initial != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final parsed = Uri.tryParse(debugAttendanceQr);
-        if (parsed != null) _openQr(parsed);
+        _openQr(initial);
       });
     }
   }
@@ -79,6 +87,10 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
       busy = true;
       error = null;
     });
+    await _loadInfo(parsed);
+  }
+
+  Future<void> _loadInfo(Uri parsed) async {
     try {
       final next = await widget.api.attendanceInfo(parsed);
       if (mounted) setState(() => info = next);

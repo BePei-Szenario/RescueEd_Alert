@@ -6,6 +6,7 @@ import {senderFor} from "@/lib/email-settings";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {calendarYearRetentionEnd} from "@/lib/retention";
+import {outboxPayloadExpiresAt,sensitiveEmailPayload} from "@/lib/secure-email-payload";
 import {id} from "@/lib/security";
 import {currentUser} from "@/lib/session";
 
@@ -42,9 +43,10 @@ export async function POST(request:Request){
   const db=getDb(),[existing]=await db.select().from(appSubscriptionWithdrawals).where(eq(appSubscriptionWithdrawals.subscriptionId,subscription.id)).limit(1);
   if(existing)return Response.json({ok:true,id:existing.id,status:existing.status,requestedAt:existing.requestedAt.toISOString()},{headers:noStore});
   const withdrawalId=id("wdr"),mailId=id("mail"),senderEmail=await senderFor("customer_contact"),statement=`Hiermit widerrufe ich den Vertrag über das private RescueEd Alert Monatsabo (${subscription.productId}, ${subscription.store}).`,requestedAt=now;
+  const payload=await sensitiveEmailPayload(request,mailId,"withdrawal_confirmation",emailPayload({template:"withdrawal_confirmation",message:"Wir bestätigen den Eingang Ihres Widerrufs.",withdrawalReference:withdrawalId,statement,requestedAt:requestedAt.toISOString(),store:subscription.store,productId:subscription.productId}));
   await db.batch([
    db.insert(appSubscriptionWithdrawals).values({id:withdrawalId,userId:user.id,subscriptionId:subscription.id,fullName:user.fullName,email:contactEmail,store:subscription.store,productId:subscription.productId,storeReferenceHash:subscription.storeReferenceHash,statement,status:"received",requestedAt,confirmationQueuedAt:now,retainUntil:calendarYearRetentionEnd(now,3),createdAt:now}),
-   db.insert(emailOutbox).values({id:mailId,userId:user.id,type:"withdrawal_confirmation",senderEmail,recipientEmail:contactEmail,subject:"RescueEd Alert – Eingang Ihres Widerrufs",payloadJson:emailPayload({template:"withdrawal_confirmation",message:"Wir bestätigen den Eingang Ihres Widerrufs.",withdrawalReference:withdrawalId,statement,requestedAt:requestedAt.toISOString(),store:subscription.store,productId:subscription.productId}),createdAt:now}),
+   db.insert(emailOutbox).values({id:mailId,userId:user.id,type:"withdrawal_confirmation",senderEmail,recipientEmail:contactEmail,subject:"RescueEd Alert – Eingang Ihres Widerrufs",payloadJson:payload,sensitiveExpiresAt:outboxPayloadExpiresAt(now),createdAt:now}),
    db.insert(auditLogs).values({id:id("aud"),actorUserId:user.id,action:"consumer.withdrawal_received",entityType:"subscription_withdrawal",entityId:withdrawalId,metadataJson:JSON.stringify({subscriptionId:subscription.id,store:subscription.store,requestedAt:requestedAt.toISOString()}),createdAt:now})
   ]);
   return Response.json({ok:true,id:withdrawalId,status:"received",requestedAt:requestedAt.toISOString()},{status:201,headers:noStore});

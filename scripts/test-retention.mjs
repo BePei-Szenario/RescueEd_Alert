@@ -48,7 +48,7 @@ try {
   run("migrate-sqlite.mjs");
   const db = new DatabaseSync(database);
   db.exec("PRAGMA foreign_keys=ON");
-  const now = Date.now(), old = Date.UTC(2020, 0, 1), recent = now - 3600000;
+  const now = Date.now(), old = Date.UTC(2020, 0, 1), recent = now - 3600000, day = 86400000;
   db.prepare("INSERT INTO app_crash_reports VALUES (?,?,?,?,?,?,?,?,?)").run("crash-old","android","1.0","flutter","Test","#0 stack","hash",old,old);
   db.prepare("INSERT INTO app_crash_reports VALUES (?,?,?,?,?,?,?,?,?)").run("crash-new","android","1.0","flutter","Test","#0 stack","hash",recent,recent);
   db.prepare("INSERT INTO auth_rate_limits VALUES (?,?,?,?,?,?)").run("limit-old","app-crash-ip",1,old,null,old);
@@ -58,6 +58,22 @@ try {
   db.prepare("INSERT INTO support_tickets (id,requester_type,subject,status,resolved_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").run("ticket-open-recent","helper","Aktuelle Helferfrage","open",null,old,recent);
   db.prepare("INSERT INTO support_tickets (id,requester_type,subject,status,resolved_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").run("ticket-user-old","user","Alte offene Kundenfrage","open",null,old,old);
   db.prepare("INSERT INTO support_tickets (id,requester_type,subject,status,resolved_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").run("ticket-held","helper","Streitfall","open",null,old,old);
+  db.prepare("INSERT INTO organizations (id,name,billing_email,created_at) VALUES (?,?,?,?)").run("org-retention","Testorganisation","billing@example.test",old);
+  db.prepare("INSERT INTO users (id,organization_id,full_name,email,password_hash,created_at) VALUES (?,?,?,?,?,?)").run("user-retention","org-retention","Testnutzer","retention@example.test","hash",old);
+  db.prepare("INSERT INTO events (id,organization_id,owner_user_id,name,event_date,end_date,start_time,end_time,helper_limit,price_cents,public_join_token_hash,created_at,delete_helpers_after) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").run("event-due","org-retention","user-retention","Abgelaufen","2020-01-01","2020-01-01","08:00","18:00",20,0,"join-due",old,old);
+  const futureEventDate = new Date(now + 10 * day).toISOString().slice(0,10);
+  db.prepare("INSERT INTO events (id,organization_id,owner_user_id,name,event_date,end_date,start_time,end_time,helper_limit,price_cents,public_join_token_hash,created_at,delete_helpers_after) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").run("event-future","org-retention","user-retention","Zukünftig",futureEventDate,futureEventDate,"08:00","18:00",20,0,"join-future",old,old);
+  db.prepare("INSERT INTO events (id,organization_id,owner_user_id,name,event_date,end_date,start_time,end_time,helper_limit,price_cents,public_join_token_hash,status,created_at,ended_at,delete_helpers_after) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("event-cancelled","org-retention","user-retention","Vorzeitig beendet",futureEventDate,futureEventDate,"08:00","18:00",20,0,"join-cancelled","cancelled",old,old,now+40*day);
+  db.prepare("INSERT INTO helpers (id,event_id,name,qualification,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?)").run("helper-due","event-due","Fällige Person","Sanitäter","session-due","qr",old);
+  db.prepare("INSERT INTO helpers (id,event_id,name,qualification,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?)").run("helper-future","event-future","Künftige Person","Sanitäter","session-future","qr",old);
+  db.prepare("INSERT INTO helpers (id,event_id,name,qualification,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?)").run("helper-cancelled","event-cancelled","Beendete Person","Sanitäter","session-cancelled","qr",old);
+  db.prepare("INSERT INTO alerts (id,event_id,created_by_user_id,message,created_at) VALUES (?,?,?,?,?)").run("alert-due","event-due","user-retention","Test",old);
+  db.prepare("INSERT INTO alert_recipients (id,alert_id,helper_id,sent_at) VALUES (?,?,?,?)").run("recipient-due","alert-due","helper-due",old);
+  db.prepare("INSERT INTO helper_devices (id,helper_id,platform,alarm_tone,last_seen_at) VALUES (?,?,?,?,?)").run("device-due","helper-due","android","signal",old);
+  db.prepare("INSERT INTO support_tickets (id,requester_type,requester_helper_id,event_id,subject,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").run("ticket-helper-link","helper","helper-due","event-due","Aktuell","open",recent,recent);
+  db.prepare("INSERT INTO email_outbox (id,type,recipient_email,subject,payload_json,status,created_at) VALUES (?,?,?,?,?,?,?)").run("mail-old-failed","customer_contact","old@example.test","Alt",'{"personal":"data"}',"failed",old);
+  db.prepare("INSERT INTO email_outbox (id,type,recipient_email,subject,payload_json,status,created_at) VALUES (?,?,?,?,?,?,?)").run("mail-old-pending","order_confirmation","old@example.test","Alt",'{"personal":"data"}',"pending",old);
+  db.prepare("INSERT INTO email_outbox (id,type,recipient_email,subject,payload_json,status,created_at) VALUES (?,?,?,?,?,?,?)").run("mail-recent","customer_contact","new@example.test","Neu",'{"personal":"data"}',"failed",recent);
   db.prepare("INSERT INTO retention_holds (id,entity_type,entity_id,reason,reference,created_at) VALUES (?,?,?,?,?,?)").run("hold-ticket","support_ticket","ticket-held","Streitfall","AZ-2",now);
   db.prepare("INSERT INTO deleted_customer_archives (id,source_user_id,source_organization_id,full_name,email,organization_name,legal_snapshot_json,account_created_at,deleted_at,retention_review_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run("archive-old","u1","o1","Alt","alt@example.test","Org","{}",old,old,old,old);
   db.prepare("INSERT INTO retention_holds (id,entity_type,entity_id,reason,reference,created_at) VALUES (?,?,?,?,?,?)").run("hold-1","contract_evidence","archive-old","Streitfall","AZ-1",now);
@@ -68,22 +84,34 @@ try {
   const after = new DatabaseSync(database);
   assert.equal(after.prepare("SELECT count(*) AS n FROM app_crash_reports").get().n, 1);
   assert.equal(after.prepare("SELECT count(*) AS n FROM auth_rate_limits").get().n, 1);
-  assert.equal(after.prepare("SELECT count(*) AS n FROM support_tickets").get().n, 2);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM support_tickets").get().n, 3);
   assert.equal(after.prepare("SELECT count(*) AS n FROM billing_records").get().n, 0);
   assert.equal(after.prepare("SELECT count(*) AS n FROM privacy_request_records").get().n, 0);
   assert.equal(after.prepare("SELECT count(*) AS n FROM deleted_customer_archives").get().n, 1);
   assert.equal(after.prepare("SELECT count(*) AS n FROM retention_runs").get().n, 1);
-  assert.equal(after.prepare("SELECT count(*) AS n FROM retention_actions WHERE action='deleted'").get().n, 5);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM retention_actions WHERE action='deleted'").get().n, 7);
   assert.equal(after.prepare("SELECT count(*) AS n FROM support_tickets WHERE id='ticket-open-recent'").get().n, 1);
   assert.equal(after.prepare("SELECT count(*) AS n FROM support_tickets WHERE id='ticket-held'").get().n, 1);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM helpers WHERE id='helper-due'").get().n, 0);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM helpers WHERE id='helper-future'").get().n, 1);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM helpers WHERE id='helper-cancelled'").get().n, 0);
+  assert.equal(after.prepare("SELECT requester_helper_id FROM support_tickets WHERE id='ticket-helper-link'").get().requester_helper_id, null);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM alert_recipients WHERE id='recipient-due'").get().n, 0);
+  assert.equal(after.prepare("SELECT count(*) AS n FROM helper_devices WHERE id='device-due'").get().n, 0);
+  assert.ok(after.prepare("SELECT delete_helpers_after FROM events WHERE id='event-future'").get().delete_helpers_after > now);
+  assert.equal(after.prepare("SELECT payload_json,status FROM email_outbox WHERE id='mail-old-failed'").get().payload_json, "{}");
+  const oldPendingMail = after.prepare("SELECT payload_json,status FROM email_outbox WHERE id='mail-old-pending'").get();
+  assert.equal(oldPendingMail.payload_json, "{}");
+  assert.equal(oldPendingMail.status, "failed");
+  assert.equal(after.prepare("SELECT payload_json FROM email_outbox WHERE id='mail-recent'").get().payload_json, '{"personal":"data"}');
   after.close();
   run("manage-retention-hold.mjs", ["release","contract_evidence","archive-old","AZ-1","Fall abgeschlossen"]);
   run("manage-retention-hold.mjs", ["release","support_ticket","ticket-held","AZ-2","Fall abgeschlossen"]);
   run("purge-diagnostics.mjs");
   const final = new DatabaseSync(database);
   assert.equal(final.prepare("SELECT count(*) AS n FROM deleted_customer_archives").get().n, 0);
-  assert.equal(final.prepare("SELECT count(*) AS n FROM support_tickets").get().n, 1);
-  assert.equal(final.prepare("SELECT count(*) AS n FROM retention_actions WHERE action='deleted'").get().n, 7);
+  assert.equal(final.prepare("SELECT count(*) AS n FROM support_tickets").get().n, 2);
+  assert.equal(final.prepare("SELECT count(*) AS n FROM retention_actions WHERE action='deleted'").get().n, 9);
   final.close();
   await mkdir(backupDir);
   const expiredBackup = path.join(backupDir, "rescueed-20200101T000000Z-abcdef123456.sqlite.enc");
@@ -105,6 +133,11 @@ try {
 } finally {
   const resolved = path.resolve(temporary);
   if (resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith("rescueed-retention-test-")) {
-    await rm(resolved, {recursive:true, force:true});
+    try {
+      await rm(resolved, {recursive:true, force:true, maxRetries:2, retryDelay:100});
+    } catch (error) {
+      if (process.platform !== "win32" || error?.code !== "EBUSY") throw error;
+      process.stderr.write(`Temporäres Testverzeichnis blieb wegen einer Windows-Dateisperre bestehen: ${resolved}\n`);
+    }
   }
 }
