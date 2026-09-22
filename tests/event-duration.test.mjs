@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {eventDurationMinutes,STANDARD_EVENT_MAX_MINUTES,effectiveEventEndDate} from "../lib/event-duration.ts";
+import {eventDurationMinutes,SHORT_EVENT_MAX_MINUTES,STANDARD_EVENT_MAX_MINUTES,effectiveEventEndDate} from "../lib/event-duration.ts";
 import {attendanceWindowOpen} from "../lib/attendance-window.ts";
 
-test("standard event limit is exactly 48 hours",()=>{
- assert.equal(eventDurationMinutes("2026-09-16","08:00","2026-09-18","08:00"),STANDARD_EVENT_MAX_MINUTES);
- assert.equal(eventDurationMinutes("2026-09-16","08:00","2026-09-18","08:01"),STANDARD_EVENT_MAX_MINUTES+1);
+test("short event tier ends after exactly 48 hours",()=>{
+ assert.equal(eventDurationMinutes("2026-09-16","08:00","2026-09-18","08:00"),SHORT_EVENT_MAX_MINUTES);
+ assert.equal(eventDurationMinutes("2026-09-16","08:00","2026-09-18","08:01"),SHORT_EVENT_MAX_MINUTES+1);
+});
+
+test("standard event limit is exactly five days",()=>{
+ assert.equal(eventDurationMinutes("2026-09-16","08:00","2026-09-21","08:00"),STANDARD_EVENT_MAX_MINUTES);
+ assert.equal(eventDurationMinutes("2026-09-16","08:00","2026-09-21","08:01"),STANDARD_EVENT_MAX_MINUTES+1);
 });
 
 test("invalid or reversed event periods cannot pass validation",()=>{
