@@ -37,6 +37,10 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
   }
 
   Future<void> loadProfile() async {
+    if (widget.consumer) {
+      if (mounted) setState(() => loading = false);
+      return;
+    }
     try {
       final profile = await widget.api.get('/api/auth/me'),
           org = profile['organization'] as Map<String, dynamic>? ?? {};
@@ -233,7 +237,11 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
-          title: const Text('Vielen Dank für Ihre Bestellung!'),
+          title: Text(
+            widget.consumer
+                ? 'Event angelegt'
+                : 'Vielen Dank für Ihre Bestellung!',
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -300,7 +308,13 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Sanitätsdienst erstellen')),
+    appBar: AppBar(
+      title: Text(
+        widget.consumer
+            ? 'Privates Event erstellen'
+            : 'Sanitätsdienst erstellen',
+      ),
+    ),
     body: loading
         ? const Center(child: CircularProgressIndicator())
         : ListView(
@@ -363,7 +377,9 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  unlimitedEventDuration
+                  widget.consumer
+                      ? 'Maximal 5 Tage pro Event. Das Event ist im aktiven Monatsabo enthalten.'
+                      : unlimitedEventDuration
                       ? 'Dauernutzer: Events ohne Zeitlimit möglich.'
                       : 'Maximal 5 Tage pro Event. Ab mehr als 2 Tagen gilt der 5-Tage-Tarif.',
                 ),
@@ -478,38 +494,54 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
                 ),
               ],
               const SizedBox(height: 20),
-              Card(
-                color: complimentary || widget.consumer
-                    ? const Color(0xffe8f7ef)
-                    : const Color(0xffffecee),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.consumer
-                              ? 'Im Monatsabo enthalten'
-                              : complimentary
-                              ? 'Kostenlose Nutzung freigeschaltet'
-                              : '${usesFiveDayTariff ? 'Über 2 bis 5 Tage' : 'Bis 2 Tage'} · ${helperCount <= 20 ? 'bis 20 Helfer' : 'ab 21 Helfer'}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+              if (widget.consumer)
+                const Card(
+                  color: Color(0xffe8f7ef),
+                  child: Padding(
+                    padding: EdgeInsets.all(18),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle_outline, color: Colors.green),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Im aktiven Monatsabo enthalten · keine zusätzliche Eventgebühr',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
-                      Text(
-                        _money(priceCents),
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: complimentary || widget.consumer
-                              ? Colors.green
-                              : Colors.red,
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Card(
+                  color: complimentary
+                      ? const Color(0xffe8f7ef)
+                      : const Color(0xffffecee),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            complimentary
+                                ? 'Kostenlose Nutzung freigeschaltet'
+                                : '${usesFiveDayTariff ? 'Über 2 bis 5 Tage' : 'Bis 2 Tage'} · ${helperCount <= 20 ? 'bis 20 Helfer' : 'ab 21 Helfer'}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          _money(priceCents),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: complimentary ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 14),
