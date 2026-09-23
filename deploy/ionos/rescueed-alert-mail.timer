@@ -1,9 +1,10 @@
 [Unit]
-Description=RescueEd Alert Mailversand jede Minute
+Description=RescueEd Alert Mailversand alle 10 Sekunden
 
 [Timer]
-OnBootSec=1min
-OnUnitActiveSec=1min
+OnBootSec=10s
+OnUnitActiveSec=10s
+AccuracySec=1s
 Unit=rescueed-alert-mail.service
 
 [Install]
