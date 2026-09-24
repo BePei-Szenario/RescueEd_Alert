@@ -9,7 +9,13 @@ const statusLabel={open:"Offen",in_progress:"In Bearbeitung",resolved:"Erledigt"
 export function SupportPanel(){
  const [tickets,setTickets]=useState<Ticket[]>([]),[crashes,setCrashes]=useState<Crash[]>([]),[selected,setSelected]=useState<string|null>(null),[messages,setMessages]=useState<Message[]>([]),[reply,setReply]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  const load=useCallback(async()=>{try{const response=await fetch("/api/unternehmer/support",{cache:"no-store"}),data=await response.json() as {error?:string;tickets:Ticket[];crashes:Crash[]};if(!response.ok)throw new Error(data.error||"Supportdaten konnten nicht geladen werden.");setTickets(data.tickets);setCrashes(data.crashes);setError("")}catch(reason){setError(reason instanceof Error?reason.message:"Supportdaten konnten nicht geladen werden.")}},[]);
- useEffect(()=>{const timer=setTimeout(()=>void load(),0);return()=>clearTimeout(timer)},[load]);
+ useEffect(()=>{
+  const initial=setTimeout(()=>void load(),0);
+  const timer=setInterval(()=>void load(),10_000);
+  const refreshVisible=()=>{if(document.visibilityState==="visible")void load()};
+  document.addEventListener("visibilitychange",refreshVisible);
+  return()=>{clearTimeout(initial);clearInterval(timer);document.removeEventListener("visibilitychange",refreshVisible)};
+ },[load]);
  async function openTicket(id:string){setSelected(id);setMessages([]);try{const response=await fetch(`/api/support/tickets/${encodeURIComponent(id)}`,{cache:"no-store"}),data=await response.json() as {error?:string;messages:Message[]};if(!response.ok)throw new Error(data.error||"Ticket konnte nicht geladen werden.");setMessages(data.messages)}catch(reason){setError(reason instanceof Error?reason.message:"Ticket konnte nicht geladen werden.")}}
  async function sendReply(){if(!selected||!reply.trim())return;setBusy(true);try{const response=await fetch(`/api/support/tickets/${encodeURIComponent(selected)}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message:reply})}),data=await response.json() as {error?:string};if(!response.ok)throw new Error(data.error||"Antwort fehlgeschlagen.");setReply("");await openTicket(selected);await load()}catch(reason){setError(reason instanceof Error?reason.message:"Antwort fehlgeschlagen.")}finally{setBusy(false)}}
  async function changeStatus(status:Ticket["status"]){if(!selected)return;setBusy(true);try{const response=await fetch(`/api/support/tickets/${encodeURIComponent(selected)}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status})}),data=await response.json() as {error?:string};if(!response.ok)throw new Error(data.error||"Statusänderung fehlgeschlagen.");await load()}catch(reason){setError(reason instanceof Error?reason.message:"Statusänderung fehlgeschlagen.")}finally{setBusy(false)}}

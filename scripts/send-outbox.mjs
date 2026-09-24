@@ -38,7 +38,9 @@ function body(data) {
     lines.push("", `Bestellreferenz: ${data.orderReference}`, `Bestellt am: ${data.orderedAt}`, `Empfänger: ${data.recipientName}`);
     if (data.billingAddress) lines.push(`${data.billingAddress.street}, ${data.billingAddress.postalCode} ${data.billingAddress.city}`);
     if (data.event) lines.push(`Event: ${data.event.name}`, `Zeitraum: ${data.event.period}`, `Helferzahl: ${data.event.helperLimit}`);
-    lines.push(`Leistung: ${data.service}`, `Netto: ${euro(data.pricing?.netCents)}`, `Umsatzsteuer (${data.pricing?.vatRatePercent || 0} %): ${euro(data.pricing?.vatCents)}`, `Gesamtbetrag: ${euro(data.pricing?.grossCents)}`, `Zahlungsart: ${data.paymentMethod}`, String(data.billingTiming || ""));
+    lines.push(`Leistung: ${data.service}`);
+    if (data.pricing) lines.push(`Netto: ${euro(data.pricing.netCents)}`, `Umsatzsteuer (${data.pricing.vatRatePercent || 0} %): ${euro(data.pricing.vatCents)}`, `Gesamtbetrag: ${euro(data.pricing.grossCents)}`);
+    lines.push(`Zahlungsart: ${data.paymentMethod}`, String(data.billingTiming || ""));
   }
   if (data.template === "withdrawal_confirmation") {
     lines.push("", `Widerrufsreferenz: ${data.withdrawalReference}`, `Eingegangen am: ${data.requestedAt}`, `Store: ${data.store}`, `Produkt: ${data.productId}`, "", String(data.statement || ""), "", "Der Widerruf wird geprüft und eine erforderliche Rückerstattung über den beim Kauf verwendeten Store bearbeitet. Die Kündigung künftiger Verlängerungen ist davon getrennt.");

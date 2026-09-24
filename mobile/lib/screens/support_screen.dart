@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../api.dart';
 
 class SupportScreen extends StatefulWidget {
@@ -20,6 +22,17 @@ class _SupportScreenState extends State<SupportScreen> {
   List<dynamic> tickets = [];
   bool busy = false;
   String? error;
+  String appVersion = 'wird geladen';
+  String get platform => switch (defaultTargetPlatform) {
+    TargetPlatform.android => 'android',
+    TargetPlatform.iOS => 'ios',
+    _ => 'other',
+  };
+  String get buildMode => kReleaseMode
+      ? 'release'
+      : kProfileMode
+      ? 'profile'
+      : 'debug';
   bool get authorized =>
       widget.api.sessionCookie != null || widget.helperToken != null;
   String get query => widget.eventId == null
@@ -29,7 +42,21 @@ class _SupportScreenState extends State<SupportScreen> {
   @override
   void initState() {
     super.initState();
+    _loadAppVersion();
     if (authorized) load();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final package = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(
+          () => appVersion = '${package.version}+${package.buildNumber}',
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => appVersion = 'unbekannt');
+    }
   }
 
   @override
@@ -60,9 +87,13 @@ class _SupportScreenState extends State<SupportScreen> {
     if (busy) return;
     setState(() => busy = true);
     try {
+      if (appVersion == 'wird geladen') await _loadAppVersion();
       await widget.api.post('/api/support/tickets', {
         'subject': subject.text.trim(),
         'message': description.text.trim(),
+        'appVersion': appVersion,
+        'platform': platform,
+        'buildMode': buildMode,
         if (widget.eventId != null) 'eventId': widget.eventId,
       }, bearer: widget.helperToken);
       subject.clear();
@@ -212,6 +243,21 @@ class _SupportScreenState extends State<SupportScreen> {
             'Fehler oder Frage melden',
             style: Theme.of(context).textTheme.titleLarge,
           ),
+          const SizedBox(height: 6),
+          Text(
+            'An das Ticket werden App-Version $appVersion, Plattform ${_platformLabel(platform)} und Ausführungsmodus $buildMode angehängt. Keine Gerätekennung, Zugangsdaten oder Sicherheitscodes.',
+            style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 8),
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Text(
+                'Zusätzlich melden Release-Versionen unbehandelte App-Abstürze getrennt vom Ticket. Dabei kommen Plattform, App-Version, Fehlerart und ein gekürzter technischer Stack an. Diese Absturzberichte enthalten keine Konto-ID, Gerätekennung, Fehlermeldung oder Zugangsdaten.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ),
           const SizedBox(height: 10),
           TextField(
             controller: subject,
@@ -273,3 +319,9 @@ class _SupportScreenState extends State<SupportScreen> {
     ),
   );
 }
+
+String _platformLabel(String value) => switch (value) {
+  'android' => 'Android',
+  'ios' => 'iOS',
+  _ => 'Sonstige',
+};

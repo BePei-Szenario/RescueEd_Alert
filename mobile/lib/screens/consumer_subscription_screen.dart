@@ -44,6 +44,7 @@ class _ConsumerSubscriptionScreenState
   bool busy = false;
   bool active = false;
   bool documentsFromCache = false;
+  bool purchaseListenerStarted = false;
   String? error;
 
   String get productId =>
@@ -57,12 +58,6 @@ class _ConsumerSubscriptionScreenState
   @override
   void initState() {
     super.initState();
-    purchases = store.purchaseStream.listen(
-      _onPurchases,
-      onError: (Object exception) {
-        if (mounted) setState(() => error = exception.toString());
-      },
-    );
     _load();
   }
 
@@ -74,11 +69,6 @@ class _ConsumerSubscriptionScreenState
 
   Future<void> _load() async {
     try {
-      final legal = await LegalDocuments(widget.api).consumerDocuments();
-      documents = (legal.data['documents'] as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
-      documentsFromCache = legal.fromCache;
       final status = await widget.api.get('/api/mobile/consumer/subscription');
       active = status['active'] == true;
       try {
@@ -87,6 +77,18 @@ class _ConsumerSubscriptionScreenState
         withdrawal = null;
       }
       if (!active) {
+        final legal = await LegalDocuments(widget.api).consumerDocuments();
+        final rawDocuments = legal.data['documents'];
+        if (rawDocuments is! List) {
+          throw StateError(
+            'Die aktuellen Rechtstexte konnten nicht geladen werden.',
+          );
+        }
+        documents = rawDocuments
+            .whereType<Map>()
+            .map(Map<String, dynamic>.from)
+            .toList();
+        documentsFromCache = legal.fromCache;
         if (productId.isEmpty) {
           throw StateError(
             'Das Monatsabo ist im Store noch nicht eingerichtet. Bitte später erneut versuchen.',
@@ -103,11 +105,23 @@ class _ConsumerSubscriptionScreenState
           throw StateError('Das Monatsabo wurde im Store noch nicht gefunden.');
         }
         product = products.productDetails.single;
+        _listenForPurchases();
       }
     } catch (exception) {
       error = exception.toString();
     }
     if (mounted) setState(() => loading = false);
+  }
+
+  void _listenForPurchases() {
+    if (purchaseListenerStarted) return;
+    purchaseListenerStarted = true;
+    purchases = store.purchaseStream.listen(
+      _onPurchases,
+      onError: (Object exception) {
+        if (mounted) setState(() => error = exception.toString());
+      },
+    );
   }
 
   Future<void> _showDocument(Map<String, dynamic> document) async {
@@ -238,14 +252,42 @@ class _ConsumerSubscriptionScreenState
   }
 
   Future<void> _manageSubscription() async {
-    final uri = Platform.isIOS
-        ? Uri.parse('https://apps.apple.com/account/subscriptions')
-        : Uri.parse(
-            'https://play.google.com/store/account/subscriptions?package=$googlePackageName&sku=$googleSubscriptionId',
-          );
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
-        mounted) {
-      setState(() => error = 'Die Aboverwaltung konnte nicht geöffnet werden.');
+    if (busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    final rawStore = withdrawal?['store'];
+    final subscriptionStore = rawStore is String ? rawStore : storeName;
+    final candidates = subscriptionStore == 'apple'
+        ? [Uri.parse('https://apps.apple.com/account/subscriptions')]
+        : [
+            if (googleSubscriptionId.isNotEmpty && googlePackageName.isNotEmpty)
+              Uri.https('play.google.com', '/store/account/subscriptions', {
+                'sku': googleSubscriptionId,
+                'package': googlePackageName,
+              }),
+            Uri.parse('https://play.google.com/store/account/subscriptions'),
+          ];
+    var opened = false;
+    for (final uri in candidates) {
+      try {
+        if (await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+          opened = true;
+          break;
+        }
+      } catch (_) {
+        // Try the generic store subscription page before showing an error.
+      }
+    }
+    if (mounted) {
+      setState(() {
+        busy = false;
+        if (!opened) {
+          error =
+              'Die Store-Aboverwaltung konnte nicht geöffnet werden. Öffne im Play Store beziehungsweise App Store „Zahlungen & Abos“ und wähle RescueEd Alert.';
+        }
+      });
     }
   }
 
@@ -432,17 +474,17 @@ class _ConsumerSubscriptionScreenState
             ),
           ),
           OutlinedButton(
-            onPressed: _manageSubscription,
+            onPressed: busy ? null : _manageSubscription,
             child: Text(
               Platform.isIOS
-                  ? 'Abo im App Store verwalten'
-                  : 'Abo bei Google Play verwalten',
+                  ? 'Abo kündigen oder im App Store verwalten'
+                  : 'Abo kündigen oder bei Google Play verwalten',
             ),
           ),
         ],
-        if (!active && withdrawal?['subscription'] != null)
+        if (!active && withdrawal?['productId'] is String)
           OutlinedButton(
-            onPressed: _manageSubscription,
+            onPressed: busy ? null : _manageSubscription,
             child: Text(
               Platform.isIOS
                   ? 'Früheres Abo im App Store verwalten'
@@ -482,9 +524,29 @@ class _ConsumerSubscriptionScreenState
             child: Text(error!, style: const TextStyle(color: Colors.red)),
           ),
         const SizedBox(height: 18),
-        const Text(
-          'Kündigung, Widerruf und Kontolöschung sind unterschiedliche Vorgänge. Abrechnung und Aboverwaltung erfolgen über Google Play beziehungsweise den App Store.',
-          textAlign: TextAlign.center,
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Kündigung',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Die automatische Verlängerung kündigst du in der Aboverwaltung von Google Play beziehungsweise des App Store. Der bereits bezahlte Zeitraum bleibt nutzbar.',
+                ),
+                SizedBox(height: 12),
+                Text('Widerruf', style: TextStyle(fontWeight: FontWeight.bold)),
+                SizedBox(height: 4),
+                Text(
+                  'Ein Widerruf innerhalb der angezeigten Frist wird über „Vertrag widerrufen“ direkt an RescueEd übermittelt und per E-Mail bestätigt. Er ist von der Store-Kündigung und der Kontolöschung getrennt.',
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     ),

@@ -123,21 +123,12 @@ class _OwnerScreenState extends State<OwnerScreen> {
     await load();
   }
 
-  Future<void> _openSubscriptionManagement() async {
-    if (consumerUserId == null) {
-      await load();
-      if (consumerUserId == null || !mounted) return;
-    }
+  Future<void> _openSettings() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ConsumerSubscriptionScreen(
-          api: widget.api,
-          userId: consumerUserId!,
-          onActive: () {
-            if (mounted) Navigator.pop(context);
-          },
-        ),
+        builder: (_) =>
+            SettingsScreen(api: widget.api, consumer: widget.consumer),
       ),
     );
     await load();
@@ -225,10 +216,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
       actions: [
         IconButton(
           tooltip: 'Einstellungen',
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => SettingsScreen(api: widget.api)),
-          ),
+          onPressed: _openSettings,
           icon: const Icon(Icons.settings_outlined),
         ),
         IconButton(
@@ -310,30 +298,8 @@ class _OwnerScreenState extends State<OwnerScreen> {
                           ),
                           const SizedBox(height: 10),
                           FilledButton(
-                            onPressed: _createEvent,
-                            child: const Text(
-                              'Monatsabo prüfen oder abschließen',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (widget.consumer && subscriptionActive)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'App-Abo aktiv · Neue Events sind im Abo enthalten.',
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton(
-                            onPressed: _openSubscriptionManagement,
-                            child: const Text(
-                              'Abo verwalten oder Vertrag widerrufen',
-                            ),
+                            onPressed: _openSettings,
+                            child: const Text('Zu den Monatsabo-Einstellungen'),
                           ),
                         ],
                       ),
@@ -386,6 +352,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
                               builder: (_) => OwnerEventScreen(
                                 api: widget.api,
                                 eventId: event['id'] as String,
+                                consumer: widget.consumer,
                               ),
                             ),
                           );
@@ -414,22 +381,30 @@ class OwnerEventScreen extends StatefulWidget {
     required this.api,
     required this.eventId,
     this.onLogout,
+    this.consumer = false,
   });
   final ApiClient api;
   final String eventId;
   final Future<void> Function()? onLogout;
+  final bool consumer;
   @override
   State<OwnerEventScreen> createState() => _OwnerEventScreenState();
 }
 
-class _OwnerEventScreenState extends State<OwnerEventScreen> {
+class _OwnerEventScreenState extends State<OwnerEventScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? data;
   String? error;
   Timer? timer;
   bool busy = false;
+  late final AnimationController _alarmPulse;
   @override
   void initState() {
     super.initState();
+    _alarmPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..repeat(reverse: true);
     load();
     timer = Timer.periodic(
       const Duration(seconds: 5),
@@ -440,6 +415,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
   @override
   void dispose() {
     timer?.cancel();
+    _alarmPulse.dispose();
     super.dispose();
   }
 
@@ -765,6 +741,9 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
 
   Future<void> showEventDetails() async {
     final event = data?['event'] as Map<String, dynamic>?;
+    final permissions =
+        (data?['permissions'] as Map?)?.cast<String, dynamic>() ??
+        const <String, dynamic>{};
     final codes = (data?['eventAccessCodes'] as List? ?? [])
         .whereType<Map>()
         .map((item) => item.cast<String, dynamic>())
@@ -841,6 +820,18 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
           ),
         ),
         actions: [
+          if (permissions['deleteEvent'] == true)
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: busy
+                  ? null
+                  : () {
+                      Navigator.pop(dialogContext);
+                      _confirmDeleteEvent();
+                    },
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Event löschen'),
+            ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Schließen'),
@@ -848,6 +839,78 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteEvent() async {
+    final event = data?['event'] as Map<String, dynamic>?;
+    final eventName = event?['name']?.toString() ?? 'Event';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Event endgültig löschen?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                eventName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Diese Aktion kann nicht rückgängig gemacht werden. Event, Helfer, Anwesenheitszeiten, Einsatzmittel und Alarmdaten werden gelöscht.',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Vor der Löschung wird der vollständige Verlauf als PDF erstellt und per E-Mail bereitgestellt.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_forever_outlined),
+            label: const Text('Endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.api.delete(
+        '/api/events/${Uri.encodeComponent(widget.eventId)}',
+      );
+      timer?.cancel();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Event gelöscht. Die Abschluss-PDF wird per E-Mail bereitgestellt.',
+          ),
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (exception) {
+      if (mounted) {
+        setState(
+          () => error = 'Event konnte nicht gelöscht werden: $exception',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   @override
@@ -898,7 +961,8 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => SettingsScreen(api: widget.api),
+                builder: (_) =>
+                    SettingsScreen(api: widget.api, consumer: widget.consumer),
               ),
             ),
             icon: const Icon(Icons.settings_outlined),
@@ -953,6 +1017,20 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                           '$visibleHelperCount Helfer anwesend · ${units.where((u) => u['operationalStatus'] == 'deployed').length} Einsatzmittel im Einsatz',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
+                        if (allowed('deleteEvent')) ...[
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                              onPressed: busy ? null : _confirmDeleteEvent,
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Event löschen'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1076,13 +1154,69 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                       ),
                     ),
                   ...units.map((u) {
+                    final assignedHelpers = allowed('viewHelpers')
+                        ? helpers
+                              .where((h) => h['assignmentId'] == u['id'])
+                              .toList()
+                        : <dynamic>[];
+                    final alarmRecipients = assignedHelpers
+                        .where(
+                          (h) => (h as Map<String, dynamic>).containsKey(
+                            'alarmAcknowledgedAt',
+                          ),
+                        )
+                        .toList();
+                    final alarmRecipientCount = allowed('viewHelpers')
+                        ? alarmRecipients.length
+                        : ((u['alarmRecipientCount'] as num?)?.toInt() ?? 0);
+                    final pendingConfirmations = allowed('viewHelpers')
+                        ? alarmRecipients
+                              .where((h) => h['alarmAcknowledgedAt'] == null)
+                              .length
+                        : ((u['pendingAcknowledgementCount'] as num?)
+                                  ?.toInt() ??
+                              0);
                     final assigned = allowed('viewHelpers')
-                            ? helpers
-                                  .where((h) => h['assignmentId'] == u['id'])
-                                  .length
+                            ? assignedHelpers.length
                             : ((u['activeHelperCount'] as num?)?.toInt() ?? 0),
-                        deployed = u['operationalStatus'] == 'deployed';
-                    return Card(
+                        deployed = u['operationalStatus'] == 'deployed',
+                        awaitingConfirmation =
+                            deployed && pendingConfirmations > 0;
+                    final confirmationText = alarmRecipientCount == 0
+                        ? null
+                        : pendingConfirmations > 0
+                        ? '$pendingConfirmations von $alarmRecipientCount Bestätigungen offen'
+                        : 'Alle $alarmRecipientCount Helfer haben bestätigt';
+                    return AnimatedBuilder(
+                      animation: _alarmPulse,
+                      builder: (context, child) {
+                        final pulse = MediaQuery.disableAnimationsOf(context)
+                            ? 1.0
+                            : _alarmPulse.value;
+                        return Card(
+                          color: awaitingConfirmation
+                              ? Color.lerp(
+                                  const Color(0xfffff7f7),
+                                  const Color(0xffffd7dc),
+                                  pulse,
+                                )
+                              : null,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: awaitingConfirmation
+                                  ? Color.lerp(
+                                      const Color(0xfffca5a5),
+                                      const Color(0xffdc2626),
+                                      pulse,
+                                    )!
+                                  : Colors.transparent,
+                              width: awaitingConfirmation ? 1.5 + pulse : 0,
+                            ),
+                          ),
+                          child: child,
+                        );
+                      },
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: deployed
@@ -1098,7 +1232,16 @@ class _OwnerEventScreenState extends State<OwnerEventScreen> {
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text(
-                          '$assigned Helfer · ${deployed ? 'Im Einsatz seit ${_time(u['deployedAt'])}' : 'Frei für Einsätze'}',
+                          '$assigned Helfer · ${deployed ? 'Im Einsatz seit ${_time(u['deployedAt'])}' : 'Frei für Einsätze'}'
+                          '${confirmationText == null ? '' : '\n$confirmationText'}',
+                          style: confirmationText == null
+                              ? null
+                              : TextStyle(
+                                  color: pendingConfirmations > 0
+                                      ? Colors.red.shade700
+                                      : Colors.green.shade700,
+                                  fontWeight: FontWeight.w700,
+                                ),
                         ),
                         trailing: deployed && allowed('alarm')
                             ? TextButton(
