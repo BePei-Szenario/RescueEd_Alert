@@ -9,7 +9,7 @@ import {requirePlatformOwnerApi} from "@/lib/session";
 
 export async function POST(request:Request){
  try{
-  const bad=rejectCrossSiteMutation(request);if(bad)return bad;
+  const bad=rejectCrossSiteMutation(request,{allowedMediaTypes:["multipart/form-data"]});if(bad)return bad;
   const auth=await requirePlatformOwnerApi();if(auth.response)return auth.response;
   const form=await request.formData();
   const documentKey=String(form.get("documentKey")||"") as LegalDocumentKey;
