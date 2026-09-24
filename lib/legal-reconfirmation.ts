@@ -3,6 +3,7 @@ import {getDb} from "@/db";
 import {legalAcknowledgements,legalDocuments,users} from "@/db/schema";
 import {currentConsumerDocuments,consumerEvidence} from "@/lib/consumer-legal";
 import {currentRegistrationDocuments,evidenceFor} from "@/lib/legal-registration";
+import {legalPdfUrl} from "@/lib/legal-document-file";
 
 export type LegalAccount={id:string;organizationId:string;role:string;accountType:string};
 
@@ -26,6 +27,6 @@ export async function legalReconfirmation(account:LegalAccount){
  const missing=expected.filter(document=>!accepted.some(row=>row.documentVersionId===document.documentVersionId&&row.documentHash===document.documentHash&&row.acknowledgementType===document.acknowledgementType));
  return {required:missing.length>0,available:true,canConfirm:consumer||account.role==="customer",documents:missing.map(document=>{
   const snapshot=snapshots.find(row=>row.id===document.documentVersionId)!;
-  return {id:snapshot.id,documentKey:snapshot.documentKey,title:snapshot.title,version:snapshot.version,content:snapshot.content,contentHash:snapshot.contentHash,acknowledgementType:document.acknowledgementType};
+  return {id:snapshot.id,documentKey:snapshot.documentKey,title:snapshot.title,version:snapshot.version,content:snapshot.content,pdfFileName:snapshot.pdfFileName,pdfUrl:snapshot.pdfFileName?legalPdfUrl(snapshot.documentKey,snapshot.id):null,contentHash:snapshot.contentHash,acknowledgementType:document.acknowledgementType};
  })};
 }

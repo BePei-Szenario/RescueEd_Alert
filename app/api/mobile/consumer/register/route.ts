@@ -8,12 +8,13 @@ import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {hashSecret,id,tokenHash} from "@/lib/security";
 import {sensitiveEmailPayload} from "@/lib/secure-email-payload";
+import {legalPdfUrl} from "@/lib/legal-document-file";
 
 export async function GET(){
  try{
   const documents=await currentConsumerDocuments();
   if(!documents)return Response.json({error:"Die B2C-Registrierung ist erst nach Veröffentlichung der AGB, Datenschutzerklärung und Widerrufsbelehrung möglich."},{status:503,headers:{"cache-control":"no-store"}});
-  return Response.json({documents:documents.map(({id,documentKey,title,version,content})=>({id,documentKey,title,version,content}))},{headers:{"cache-control":"no-store"}});
+  return Response.json({documents:documents.map(({id,documentKey,title,version,content,pdfFileName})=>({id,documentKey,title,version,content,pdfFileName,pdfUrl:pdfFileName?legalPdfUrl(documentKey,id):null}))},{headers:{"cache-control":"no-store"}});
  }catch(error){console.error("consumer_registration_legal_failed",error);return Response.json({error:"Rechtstexte konnten nicht geladen werden."},{status:503})}
 }
 

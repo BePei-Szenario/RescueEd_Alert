@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
 import '../legal_documents.dart';
+import '../legal_document_viewer.dart';
 
 class LegalReconfirmationScreen extends StatefulWidget {
   const LegalReconfirmationScreen({super.key, required this.api});
@@ -50,25 +51,8 @@ class _LegalReconfirmationScreenState extends State<LegalReconfirmationScreen> {
   }
 
   Future<void> _open(Map<String, dynamic> document) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${document['title']} · Version ${document['version']}'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: SelectableText(document['content'] as String),
-          ),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-    if (mounted) setState(() => opened.add(document['id'] as String));
+    final shown = await showLegalDocument(context, widget.api, document);
+    if (shown && mounted) setState(() => opened.add(document['id'] as String));
   }
 
   Future<void> _submit() async {

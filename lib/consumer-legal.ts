@@ -1,7 +1,8 @@
 import {and,eq} from "drizzle-orm";
 import {getDb} from "@/db";
 import {legalDocuments,legalDocumentVersions} from "@/db/schema";
-import {id,tokenHash} from "@/lib/security";
+import {legalDocumentHash,pdfHash} from "@/lib/legal-document-file";
+import {id} from "@/lib/security";
 
 export const CONSUMER_DOCUMENT_KEYS=["agb_b2c","datenschutz","widerruf"] as const;
 export type ConsumerDocumentKey=typeof CONSUMER_DOCUMENT_KEYS[number];
@@ -12,13 +13,13 @@ export async function currentConsumerDocuments(){
  for(const key of CONSUMER_DOCUMENT_KEYS){
   const [current]=await db.select().from(legalDocuments).where(eq(legalDocuments.documentKey,key)).limit(1);
   if(!current||current.status!=="published")return null;
-  const hash=await tokenHash(current.content);
+  const hash=await legalDocumentHash(current.content,current.pdfData);
   let [snapshot]=await db.select().from(legalDocumentVersions).where(and(eq(legalDocumentVersions.documentKey,key),eq(legalDocumentVersions.version,current.version))).limit(1);
   if(!snapshot){
-   await db.insert(legalDocumentVersions).values({id:id("ldv"),documentKey:key,title:current.title,version:current.version,content:current.content,contentHash:hash,publishedAt:current.updatedAt,createdAt:current.updatedAt}).onConflictDoNothing();
+   await db.insert(legalDocumentVersions).values({id:id("ldv"),documentKey:key,title:current.title,version:current.version,content:current.content,pdfData:current.pdfData,pdfFileName:current.pdfFileName,pdfHash:current.pdfHash||(current.pdfData?await pdfHash(current.pdfData):null),contentHash:hash,publishedAt:current.updatedAt,createdAt:current.updatedAt}).onConflictDoNothing();
    [snapshot]=await db.select().from(legalDocumentVersions).where(and(eq(legalDocumentVersions.documentKey,key),eq(legalDocumentVersions.version,current.version))).limit(1);
   }
-  if(!snapshot||snapshot.archivedAt||snapshot.contentHash!==hash||snapshot.content!==current.content)return null;
+  if(!snapshot||snapshot.archivedAt||snapshot.contentHash!==hash||snapshot.content!==current.content||snapshot.pdfHash!==(current.pdfHash||null)||snapshot.pdfFileName!==(current.pdfFileName||null))return null;
   rows.push(snapshot);
  }
  return rows;
