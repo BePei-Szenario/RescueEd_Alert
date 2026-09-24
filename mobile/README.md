@@ -54,11 +54,10 @@ Der Produktionsendpunkt ist die HTTPS-Adresse `https://alert-rescueed.de` am ION
 ```bash
 flutter pub get
 flutter build ipa --release \
-  --dart-define=RESCUEED_API_URL=https://alert-rescueed.de \
-  --dart-define=APPLE_SUBSCRIPTION_ID=de.rescueed.alert.monthly
+  --dart-define=RESCUEED_API_URL=https://alert-rescueed.de
 ```
 
-Anschließend in Xcode das Apple-Developer-Team für das Bundle `de.rescueed.alert` auswählen und archivieren. Die Release- und Profile-Konfigurationen verwenden automatische Signierung; für die App-Store-Verteilung wird kein registriertes Testgerät benötigt. Kamera- und Benachrichtigungsberechtigungen sind bereits beschrieben.
+Der Apple-Produktcode `de.rescueed.alert.monthly` ist als sicherer iOS-Standard hinterlegt und kann bei Bedarf weiterhin per `APPLE_SUBSCRIPTION_ID` überschrieben werden. Anschließend in Xcode das Apple-Developer-Team für das Bundle `de.rescueed.alert` auswählen und archivieren. Die Release-Konfiguration verwendet das App-Store-Profil `RescueEd Alert App Store` sowie Produktionsberechtigungen für Apple-Push; dafür wird kein registriertes Testgerät benötigt. Kamera- und Benachrichtigungsberechtigungen sind bereits beschrieben.
 
 ## Push-Betrieb
 

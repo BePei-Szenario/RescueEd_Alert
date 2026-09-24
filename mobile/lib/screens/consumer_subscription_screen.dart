@@ -10,7 +10,10 @@ import '../legal_documents.dart';
 import '../legal_document_viewer.dart';
 
 const googleSubscriptionId = String.fromEnvironment('GOOGLE_SUBSCRIPTION_ID');
-const appleSubscriptionId = String.fromEnvironment('APPLE_SUBSCRIPTION_ID');
+const appleSubscriptionId = String.fromEnvironment(
+  'APPLE_SUBSCRIPTION_ID',
+  defaultValue: 'de.rescueed.alert.monthly',
+);
 const googlePackageName = String.fromEnvironment(
   'GOOGLE_PLAY_PACKAGE_NAME',
   defaultValue: 'de.rescueed.alert',
