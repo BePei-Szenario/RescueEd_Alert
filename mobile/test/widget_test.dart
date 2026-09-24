@@ -6,6 +6,51 @@ import 'package:rescueed_alert_app/screens/home_screen.dart';
 import 'package:rescueed_alert_app/screens/login_screen.dart';
 import 'package:rescueed_alert_app/screens/registration_choice_screen.dart';
 import 'package:rescueed_alert_app/screens/event_create_screen.dart';
+import 'package:rescueed_alert_app/screens/consumer_subscription_screen.dart';
+
+class _SubscriptionApi extends ApiClient {
+  _SubscriptionApi({this.malformedRequest = false});
+
+  final bool malformedRequest;
+  bool withdrawn = false;
+
+  @override
+  Future<Map<String, dynamic>> get(String path, {String? bearer}) async {
+    return switch (path) {
+      '/api/mobile/consumer/subscription' => {'active': true},
+      '/api/mobile/consumer/withdrawal' => {
+        'eligible': !malformedRequest && !withdrawn,
+        'eligibleUntil': '2026-10-01T10:15:00.000Z',
+        'store': 'google',
+        'productId': 'rescueed_private_monthly',
+        'request': malformedRequest
+            ? {'requestedAt': 123, 'status': null}
+            : withdrawn
+            ? {'requestedAt': '2026-09-24T10:20:00.000Z', 'status': 'received'}
+            : null,
+      },
+      _ => throw StateError('Unerwarteter Testpfad: $path'),
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    String? bearer,
+  }) async {
+    if (path != '/api/mobile/consumer/withdrawal' ||
+        body['confirmed'] != true) {
+      throw StateError('Unerwarteter Testaufruf: $path');
+    }
+    withdrawn = true;
+    return {
+      'ok': true,
+      'status': 'received',
+      'requestedAt': '2026-09-24T10:20:00.000Z',
+    };
+  }
+}
 
 void main() {
   testWidgets('Startseite bietet QR und gemeinsamen Login an', (tester) async {
@@ -114,5 +159,88 @@ void main() {
     expect(find.text('0,00 €'), findsNothing);
     expect(find.text('Rechnungsdaten'), findsNothing);
     expect(find.textContaining('Zahlungspflichtig'), findsNothing);
+  });
+
+  testWidgets('Aktives Abo zeigt Kündigung und Widerruf ohne Renderfehler', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ConsumerSubscriptionScreen(
+          api: _SubscriptionApi(),
+          userId: 'usr_test',
+          onActive: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Abo verwalten'), findsOneWidget);
+    expect(
+      find.text('App-Abo aktiv · Neue Events sind im Abo enthalten.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Abo kündigen oder bei Google Play verwalten'),
+      findsOneWidget,
+    );
+    expect(find.text('Vertrag widerrufen'), findsOneWidget);
+    expect(
+      find.textContaining('Elektronischer Widerruf in der App bis'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Ungültige Widerrufsdaten lassen die Abo-Seite nicht abstürzen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ConsumerSubscriptionScreen(
+          api: _SubscriptionApi(malformedRequest: true),
+          userId: 'usr_test',
+          onActive: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.text('Widerruf eingegangen am – · Status: Unbekannt'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Widerruf wird bestätigt und anschließend angezeigt', (
+    tester,
+  ) async {
+    final api = _SubscriptionApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ConsumerSubscriptionScreen(
+          api: api,
+          userId: 'usr_test',
+          onActive: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Vertrag widerrufen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Widerruf bestätigen'), findsOneWidget);
+
+    await tester.tap(find.text('Widerruf bestätigen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Widerruf eingegangen'), findsOneWidget);
+    expect(api.withdrawn, isTrue);
+
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Widerruf eingegangen am'), findsOneWidget);
+    expect(find.textContaining('Status: Eingegangen'), findsOneWidget);
   });
 }

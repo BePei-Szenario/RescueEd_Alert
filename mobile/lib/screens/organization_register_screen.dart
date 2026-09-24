@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../legal_documents.dart';
+import '../legal_document_viewer.dart';
 
 class OrganizationRegisterScreen extends StatefulWidget {
   const OrganizationRegisterScreen({
@@ -72,25 +73,8 @@ class _OrganizationRegisterScreenState
   }
 
   Future<void> _showDocument(Map<String, dynamic> document) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('${document['title']} · ${document['version']}'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: SelectableText(document['content'] as String),
-          ),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-    if (mounted) setState(() => opened.add(document['id'] as String));
+    final shown = await showLegalDocument(context, widget.api, document);
+    if (shown && mounted) setState(() => opened.add(document['id'] as String));
   }
 
   Future<void> _submit() async {

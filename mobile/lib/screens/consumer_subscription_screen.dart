@@ -3,11 +3,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../legal_documents.dart';
+import '../legal_document_viewer.dart';
 
 const googleSubscriptionId = String.fromEnvironment('GOOGLE_SUBSCRIPTION_ID');
 const appleSubscriptionId = String.fromEnvironment('APPLE_SUBSCRIPTION_ID');
@@ -87,7 +87,13 @@ class _ConsumerSubscriptionScreenState
         documents = rawDocuments
             .whereType<Map>()
             .map(Map<String, dynamic>.from)
+            .where(_isUsableLegalDocument)
             .toList();
+        if (documents.isEmpty) {
+          throw StateError(
+            'Die aktuellen Rechtstexte konnten nicht geladen werden.',
+          );
+        }
         documentsFromCache = legal.fromCache;
         if (productId.isEmpty) {
           throw StateError(
@@ -125,25 +131,8 @@ class _ConsumerSubscriptionScreenState
   }
 
   Future<void> _showDocument(Map<String, dynamic> document) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('${document['title']} · ${document['version']}'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: SelectableText(document['content'] as String),
-          ),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-    if (mounted) setState(() => opened.add(document['id'] as String));
+    final shown = await showLegalDocument(context, widget.api, document);
+    if (shown && mounted) setState(() => opened.add(document['id'] as String));
   }
 
   Future<void> _onPurchases(List<PurchaseDetails> updates) async {
@@ -491,13 +480,13 @@ class _ConsumerSubscriptionScreenState
                   : 'Früheres Abo bei Google Play verwalten',
             ),
           ),
-        if (withdrawal?['request'] != null)
+        if (_jsonMap(withdrawal?['request']) != null)
           Card(
             color: const Color(0xfffff4e5),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'Widerruf eingegangen am ${_dateTime(withdrawal!['request']['requestedAt'] as String)} · Status: ${_withdrawalStatus(withdrawal!['request']['status'] as String)}',
+                'Widerruf eingegangen am ${_dateTime(_withdrawalField(withdrawal, 'requestedAt'))} · Status: ${_withdrawalStatus(_withdrawalField(withdrawal, 'status'))}',
               ),
             ),
           )
@@ -553,15 +542,43 @@ class _ConsumerSubscriptionScreenState
   );
 }
 
-String _dateTime(String value) => DateFormat(
-  'dd.MM.yyyy, HH:mm',
-  'de_DE',
-).format(DateTime.parse(value).toLocal());
+bool _isUsableLegalDocument(Map<String, dynamic> document) =>
+    ['id', 'documentKey', 'title', 'version', 'content'].every((key) {
+      final value = document[key];
+      return value is String && value.trim().isNotEmpty;
+    });
 
-String _withdrawalStatus(String value) => switch (value) {
+Map<String, dynamic>? _jsonMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    try {
+      return Map<String, dynamic>.from(value);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+dynamic _withdrawalField(Map<String, dynamic>? withdrawal, String field) =>
+    _jsonMap(withdrawal?['request'])?[field];
+
+String _dateTime(dynamic value) {
+  if (value is! String || value.trim().isEmpty) return '–';
+  try {
+    final date = DateTime.parse(value).toLocal();
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${two(date.day)}.${two(date.month)}.${date.year}, '
+        '${two(date.hour)}:${two(date.minute)}';
+  } catch (_) {
+    return '–';
+  }
+}
+
+String _withdrawalStatus(dynamic value) => switch (value) {
   'received' => 'Eingegangen',
   'processing' => 'In Bearbeitung',
   'refunded' => 'Erstattet',
   'rejected' => 'Abgeschlossen ohne Erstattung',
-  _ => value,
+  _ => value is String && value.trim().isNotEmpty ? value : 'Unbekannt',
 };
