@@ -8,6 +8,8 @@ import '../api.dart';
 import '../app_version.dart';
 import '../session_store.dart';
 import 'consumer_subscription_screen.dart';
+import 'organization_profile_screen.dart';
+import 'password_change_screen.dart';
 import 'support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -17,10 +19,12 @@ class SettingsScreen extends StatefulWidget {
     this.eventId,
     this.helperToken,
     this.consumer = false,
+    this.onLogout,
   });
   final ApiClient? api;
   final String? eventId, helperToken;
   final bool consumer;
+  final Future<void> Function()? onLogout;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -132,6 +136,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ? 'Aktiv · Neue Events sind enthalten'
                       : 'Nicht aktiv · Neue Events sind gesperrt',
                   onTap: _openSubscription,
+                ),
+              if (widget.consumer && widget.api != null)
+                _SettingsCard(
+                  icon: Icons.password_outlined,
+                  title: 'Passwort ändern',
+                  subtitle: 'Passwort für den privaten App-Zugang ändern',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PasswordChangeScreen(
+                        api: widget.api!,
+                        onLogout: widget.onLogout,
+                      ),
+                    ),
+                  ),
+                ),
+              if (!widget.consumer &&
+                  widget.api != null &&
+                  widget.api!.sessionCookie != null &&
+                  widget.eventId == null &&
+                  widget.helperToken == null &&
+                  widget.api!.sessionCookieName == 'rescueed_session')
+                _SettingsCard(
+                  icon: Icons.business_outlined,
+                  title: 'Organisationsprofil',
+                  subtitle:
+                      'Stammdaten, Rechnungen, Rechtstexte und Passwort verwalten',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => OrganizationProfileScreen(
+                        api: widget.api!,
+                        onLogout: widget.onLogout,
+                      ),
+                    ),
+                  ),
                 ),
               if (widget.api != null)
                 _SettingsCard(
