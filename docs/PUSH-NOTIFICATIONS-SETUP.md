@@ -17,12 +17,13 @@ Stand: 21. September 2026. Diese Implementierung ergänzt die vorhandene Servera
 Folgende Werte gehören ausschließlich in `/etc/rescueed-alert/server.env` mit Dateimodus `0600`:
 
 ```text
-FCM_SERVICE_ACCOUNT_JSON={...vollständiges Service-Account-JSON...}
+FCM_SERVICE_ACCOUNT_JSON='{...vollständiges Service-Account-JSON...}'
 FCM_PROJECT_ID=rescueed-alert-prod
 PUSH_TOKEN_ENCRYPTION_KEY=<32 zufällige Bytes als Base64 oder 64 Hex-Zeichen>
 ```
 
 Das Servicekonto benötigt nur die Berechtigung zum Senden von Firebase-Cloud-Messaging-Nachrichten. Es erhält keinen Datenbank- oder Administrationszugriff. Die JSON-Datei und der Verschlüsselungsschlüssel dürfen weder in Git noch in einen App-Build übernommen werden.
+Die einfachen Anführungszeichen um das JSON sind für die systemd-`EnvironmentFile` erforderlich, damit die `\\n`-Zeichen im privaten Schlüssel erhalten bleiben.
 
 Vor Aktivierung ist die neue SQLite-Migration anzuwenden. Danach muss ein echter Versand an mindestens ein Android-Gerät und ein physisches iPhone getestet werden.
 
