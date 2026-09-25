@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api.dart';
@@ -32,6 +33,7 @@ class HelperScreen extends StatefulWidget {
 
 class _HelperScreenState extends State<HelperScreen> {
   final store = SessionStore();
+  final alarmPlayer = AudioPlayer();
   Map<String, dynamic>? data;
   Timer? timer;
   String? error;
@@ -41,6 +43,7 @@ class _HelperScreenState extends State<HelperScreen> {
   bool pushReady = false;
   String? backgroundMonitorError;
   final shown = <String>{};
+  String? soundingAlertId;
   @override
   void initState() {
     super.initState();
@@ -94,7 +97,27 @@ class _HelperScreenState extends State<HelperScreen> {
   @override
   void dispose() {
     timer?.cancel();
+    unawaited(alarmPlayer.stop());
+    unawaited(alarmPlayer.dispose());
     super.dispose();
+  }
+
+  Future<void> _startIosAlarmSound(String alertId) async {
+    if (!Platform.isIOS || tone == 'vibration' || soundingAlertId == alertId) {
+      return;
+    }
+    await alarmPlayer.stop();
+    await alarmPlayer.setReleaseMode(ReleaseMode.loop);
+    await alarmPlayer.play(
+      AssetSource('sounds/${alarmToneFor(tone).assetName}'),
+    );
+    soundingAlertId = alertId;
+  }
+
+  Future<void> _stopIosAlarmSound(String alertId) async {
+    if (soundingAlertId != alertId) return;
+    soundingAlertId = null;
+    await alarmPlayer.stop();
   }
 
   Future<void> load({bool silent = false}) async {
@@ -133,11 +156,10 @@ class _HelperScreenState extends State<HelperScreen> {
   ) async {
     final event = current['event'] as Map<String, dynamic>,
         assignment = current['assignment'] as Map<String, dynamic>?;
+    final alertId = alert['id'] as String;
+    await _startIosAlarmSound(alertId);
     if (!backgroundMonitorReady && !pushReady) {
-      await widget.notifications.showAlarm(
-        alertId: alert['id'] as String,
-        tone: tone,
-      );
+      await widget.notifications.showAlarm(alertId: alertId, tone: tone);
     }
     if (!mounted) return;
     await showDialog(
@@ -177,8 +199,9 @@ class _HelperScreenState extends State<HelperScreen> {
                   bearer: widget.helperToken,
                 );
                 try {
-                  await widget.notifications.cancelAlarm(alert['id'] as String);
-                  await AlarmMonitor.acknowledged(alert['id'] as String);
+                  await _stopIosAlarmSound(alertId);
+                  await widget.notifications.cancelAlarm(alertId);
+                  await AlarmMonitor.acknowledged(alertId);
                 } catch (_) {
                   // The server has already accepted the acknowledgement; the
                   // monitor also stops on its next successful poll.
