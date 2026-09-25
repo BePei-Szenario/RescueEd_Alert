@@ -7,6 +7,8 @@ import 'package:rescueed_alert_app/screens/login_screen.dart';
 import 'package:rescueed_alert_app/screens/registration_choice_screen.dart';
 import 'package:rescueed_alert_app/screens/event_create_screen.dart';
 import 'package:rescueed_alert_app/screens/consumer_subscription_screen.dart';
+import 'package:rescueed_alert_app/screens/organization_profile_screen.dart';
+import 'package:rescueed_alert_app/screens/password_change_screen.dart';
 
 class _SubscriptionApi extends ApiClient {
   _SubscriptionApi({this.malformedRequest = false});
@@ -49,6 +51,79 @@ class _SubscriptionApi extends ApiClient {
       'status': 'received',
       'requestedAt': '2026-09-24T10:20:00.000Z',
     };
+  }
+}
+
+class _OrganizationProfileApi extends ApiClient {
+  @override
+  Future<Map<String, dynamic>> get(String path, {String? bearer}) async {
+    if (path != '/api/profile') {
+      throw StateError('Unerwarteter Testpfad: $path');
+    }
+    return {
+      'profile': {
+        'name': 'Max Mustermann',
+        'email': 'max@example.de',
+        'role': 'customer',
+        'accountType': 'organization',
+        'organization': {
+          'name': 'Beispiel Sanitätsdienst',
+          'organizationType': 'sanitaetsdienst',
+          'billingEmail': 'rechnung@example.de',
+          'billingStreet': 'Musterstraße',
+          'billingHouseNumber': '12',
+          'billingPostalCode': '99999',
+          'billingCity': 'Musterstadt',
+          'canViewBilling': true,
+          'canEdit': true,
+        },
+      },
+      'invoices': [
+        {
+          'id': 'inv_test',
+          'eventName': 'Stadtfest',
+          'eventDate': '2026-09-25',
+          'recipientName': 'Beispiel Sanitätsdienst',
+          'street': 'Musterstraße 12',
+          'postalCode': '99999',
+          'city': 'Musterstadt',
+          'email': 'rechnung@example.de',
+          'amountCents': 9900,
+          'status': 'sent',
+          'createdAt': '2026-09-25T08:00:00.000Z',
+          'transmittedAt': '2026-09-25T09:00:00.000Z',
+        },
+      ],
+      'legalDocuments': [
+        {
+          'documentKey': 'agb',
+          'title': 'Allgemeine Geschäftsbedingungen',
+          'version': '2026-09-25v1',
+          'pdfFileName': 'agb.pdf',
+        },
+      ],
+      'acknowledgements': [],
+      'members': [],
+    };
+  }
+}
+
+class _PasswordApi extends ApiClient {
+  bool changed = false;
+
+  @override
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    String? bearer,
+  }) async {
+    if (path != '/api/profile/password' ||
+        body['currentPassword'] != 'AltesPasswort123!' ||
+        body['newPassword'] != 'NeuesPasswort123!') {
+      throw StateError('Unerwartete Passwortänderung');
+    }
+    changed = true;
+    return {'ok': true};
   }
 }
 
@@ -190,6 +265,61 @@ void main() {
       find.textContaining('Elektronischer Widerruf in der App bis'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Organisationsprofil zeigt Stammdaten und Rechnungen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OrganizationProfileScreen(api: _OrganizationProfileApi()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Organisationsprofil'), findsOneWidget);
+    expect(find.text('Beispiel Sanitätsdienst'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('Rechnungen und Bestellungen'),
+      350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Rechnungen und Bestellungen'), findsOneWidget);
+    expect(find.text('Stadtfest'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Allgemeine Geschäftsbedingungen'),
+      350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Allgemeine Geschäftsbedingungen'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pumpAndSettle();
+    expect(find.text('Passwort ändern'), findsWidgets);
+  });
+
+  testWidgets('Privatnutzer kann sein Passwort ändern', (tester) async {
+    final api = _PasswordApi();
+    await tester.pumpWidget(MaterialApp(home: PasswordChangeScreen(api: api)));
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Bisheriges Passwort'),
+      'AltesPasswort123!',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Neues Passwort (mindestens 12 Zeichen)'),
+      'NeuesPasswort123!',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Neues Passwort wiederholen'),
+      'NeuesPasswort123!',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Passwort ändern'));
+    await tester.pumpAndSettle();
+
+    expect(api.changed, isTrue);
+    expect(find.text('Passwort geändert'), findsOneWidget);
+    expect(find.textContaining('alle Sitzungen beendet'), findsOneWidget);
   });
 
   testWidgets('Ungültige Widerrufsdaten lassen die Abo-Seite nicht abstürzen', (

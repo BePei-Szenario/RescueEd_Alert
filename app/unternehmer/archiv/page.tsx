@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import {RescueEdLogo} from "@/components/brand-logo";
 import {platformOwner} from "@/lib/session";
+import {legalPdfUrl} from "@/lib/legal-document-file";
 import {LogoutButton} from "../actions";
 import "../unternehmer.css";
 import "../owner-enhancements.css";
@@ -73,9 +74,9 @@ export default async function ArchivePage({searchParams}:{searchParams:Promise<{
    </ArchiveEntry>;
   });
  }else if(category==="rechtstexte"){
-  const rows=await db.select().from(legalDocumentVersions).where(query?or(like(legalDocumentVersions.title,search),like(legalDocumentVersions.version,search),like(legalDocumentVersions.documentKey,search)):undefined).orderBy(desc(legalDocumentVersions.publishedAt)).limit(pageSize+1).offset(offset);
+  const rows=await db.select({id:legalDocumentVersions.id,documentKey:legalDocumentVersions.documentKey,title:legalDocumentVersions.title,version:legalDocumentVersions.version,content:legalDocumentVersions.content,pdfFileName:legalDocumentVersions.pdfFileName,contentHash:legalDocumentVersions.contentHash,publishedAt:legalDocumentVersions.publishedAt,archivedAt:legalDocumentVersions.archivedAt}).from(legalDocumentVersions).where(query?or(like(legalDocumentVersions.title,search),like(legalDocumentVersions.version,search),like(legalDocumentVersions.documentKey,search)):undefined).orderBy(desc(legalDocumentVersions.publishedAt)).limit(pageSize+1).offset(offset);
   hasNext=rows.length>pageSize;
-  cards=rows.slice(0,pageSize).map(row=><ArchiveEntry key={row.id} title={`${row.title} · Version ${row.version}`} meta={`${row.documentKey} · veröffentlicht ${date(row.publishedAt)}`}><p>{row.archivedAt?`Archiviert ${date(row.archivedAt)}`:"Aktuelle Fassung"}</p><p>SHA-256: <code>{row.contentHash}</code></p><h3>Gespeicherter Wortlaut</h3><pre>{row.content}</pre></ArchiveEntry>);
+  cards=rows.slice(0,pageSize).map(row=><ArchiveEntry key={row.id} title={`${row.title} · Version ${row.version}`} meta={`${row.documentKey} · veröffentlicht ${date(row.publishedAt)}`}><p>{row.archivedAt?`Archiviert ${date(row.archivedAt)}`:"Aktuelle Fassung"}</p><p>SHA-256: <code>{row.contentHash}</code></p>{row.pdfFileName&&<p><a href={legalPdfUrl(row.documentKey,row.id)} target="_blank" rel="noreferrer">Gespeicherte PDF öffnen · {row.pdfFileName}</a></p>}<h3>Gespeicherter Wortlaut</h3><pre>{row.content}</pre></ArchiveEntry>);
  }else if(category==="bestaetigungen"){
   const rows=await db.select({id:legalAcknowledgements.id,person:users.fullName,email:users.email,organization:organizations.name,key:legalAcknowledgements.documentKey,version:legalAcknowledgements.documentVersion,hash:legalAcknowledgements.documentHash,type:legalAcknowledgements.acknowledgementType,acceptedAt:legalAcknowledgements.acceptedAt}).from(legalAcknowledgements).innerJoin(users,eq(users.id,legalAcknowledgements.userId)).innerJoin(organizations,eq(organizations.id,legalAcknowledgements.organizationId)).where(query?or(like(users.fullName,search),like(users.email,search),like(organizations.name,search),like(legalAcknowledgements.documentKey,search)):undefined).orderBy(desc(legalAcknowledgements.acceptedAt)).limit(pageSize+1).offset(offset);
   hasNext=rows.length>pageSize;

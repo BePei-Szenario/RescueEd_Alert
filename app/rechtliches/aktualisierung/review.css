@@ -17,6 +17,7 @@
 .legal-update-documents{gap:10px;margin:16px 0}
 .legal-update-documents article{padding:12px}
 .legal-update-documents summary{font-size:14px}
+.legal-update-pdf-link{display:inline-block;margin:12px 0;color:#1765d8;font-weight:750}.legal-update-pdf{display:block;width:100%;height:60vh;min-height:420px;border:1px solid #d5e1f2;border-radius:8px;background:#f6f9ff}
 .legal-update-content{font-size:14px;line-height:1.6;padding:12px}
 .legal-update-documents label{font-size:13px;margin-top:10px}
 .legal-update-card button,.legal-update-back{font-size:13px}

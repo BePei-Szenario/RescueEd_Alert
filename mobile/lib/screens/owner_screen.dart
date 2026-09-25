@@ -127,8 +127,11 @@ class _OwnerScreenState extends State<OwnerScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            SettingsScreen(api: widget.api, consumer: widget.consumer),
+        builder: (_) => SettingsScreen(
+          api: widget.api,
+          consumer: widget.consumer,
+          onLogout: widget.onLogout,
+        ),
       ),
     );
     await load();
@@ -353,6 +356,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
                                 api: widget.api,
                                 eventId: event['id'] as String,
                                 consumer: widget.consumer,
+                                onLogout: widget.onLogout,
                               ),
                             ),
                           );
@@ -961,8 +965,11 @@ class _OwnerEventScreenState extends State<OwnerEventScreen>
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    SettingsScreen(api: widget.api, consumer: widget.consumer),
+                builder: (_) => SettingsScreen(
+                  api: widget.api,
+                  consumer: widget.consumer,
+                  onLogout: widget.onLogout,
+                ),
               ),
             ),
             icon: const Icon(Icons.settings_outlined),
