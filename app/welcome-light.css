@@ -278,6 +278,72 @@
  }
 }
 
+@media(min-width:1001px) and (max-width:1400px){
+ .welcome{
+  --welcome-gutter:clamp(2rem,4vw,4rem);
+ }
+
+ .welcomegrid{
+  grid-template-columns:minmax(22rem,.9fr) minmax(0,1.1fr);
+  gap:clamp(1.5rem,3vw,3rem);
+ }
+
+ .alarm-preview{
+  width:100%;
+  max-width:none;
+  justify-self:stretch;
+ }
+
+ .alarm-preview img{
+  left:.75rem;
+  bottom:.75rem;
+  width:clamp(5.5rem,18%,7.5rem) !important;
+  max-height:72%;
+ }
+
+ .hero-line{
+  font-size:clamp(2.7rem,4.2vw,4rem);
+ }
+
+ .hero-line--helpers{
+  margin-left:clamp(.75rem,3vw,2.5rem);
+ }
+
+ .hero-line--alarm{
+  margin-left:clamp(.5rem,2vw,1.5rem);
+ }
+}
+
+@media(min-width:761px) and (max-width:1000px){
+ .welcomegrid{
+  grid-template-columns:1fr;
+  gap:2.5rem;
+  padding-top:9rem;
+ }
+
+ .welcomecontent{
+  width:min(100%,44rem);
+  justify-self:center;
+ }
+
+ .alarm-preview{
+  width:min(100%,52rem);
+  max-width:100%;
+  justify-self:center;
+ }
+
+ .alarm-preview img{
+  left:.75rem;
+  bottom:.75rem;
+  width:clamp(5.5rem,18%,8rem) !important;
+  max-height:72%;
+ }
+
+ .hero-line{
+  white-space:normal;
+ }
+}
+
 .overview-feature,
 .qr-feature,
 .capabilities,
