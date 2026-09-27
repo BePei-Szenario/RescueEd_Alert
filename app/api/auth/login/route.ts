@@ -3,6 +3,7 @@ import {getDb} from "@/db";
 import {emailOutbox,securityTokens,users} from "@/db/schema";
 import {emailPayload} from "@/lib/email-signature";
 import {senderFor} from "@/lib/email-settings";
+import {appReviewMfaCode} from "@/lib/app-review-login";
 import {clearRateLimit,consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {sensitiveEmailPayload} from "@/lib/secure-email-payload";
@@ -31,7 +32,7 @@ export async function POST(request:Request){
   const issueLimit=await consumeRateLimit({scope:"mfa-issue-account",subject:user.id,limit:5,windowMs:10*60_000});
   if(!issueLimit.allowed)return rateLimited(issueLimit.retryAfterSeconds);
   await clearRateLimit("login-account-network",accountSubject);
-  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),challenge=crypto.randomUUID()+crypto.randomUUID(),now=new Date(),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail"),tokenId=id("sec"),challengeArea=consumer?"mobile_consumer":operator?"unternehmer":"customer";
+  const code=appReviewMfaCode(normalizedEmail,user.accountType)??String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),challenge=crypto.randomUUID()+crypto.randomUUID(),now=new Date(),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail"),tokenId=id("sec"),challengeArea=consumer?"mobile_consumer":operator?"unternehmer":"customer";
   const payload=await sensitiveEmailPayload(request,mailId,"mfa",emailPayload({template:"security_code",securityCode:code,expiresAt:expiresAt.toISOString(),message:"Mit diesem Sicherheitscode schließen Sie Ihre Anmeldung bei RescueEd Alert ab."}));
   await db.batch([
    db.insert(securityTokens).values({id:tokenId,userId:user.id,purpose:"mfa",tokenHash:await tokenHash(code),challengeHash:await tokenHash(challenge),challengeArea,expiresAt,createdAt:now}),
