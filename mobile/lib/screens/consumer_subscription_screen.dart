@@ -128,7 +128,12 @@ class _ConsumerSubscriptionScreenState
     purchases = store.purchaseStream.listen(
       _onPurchases,
       onError: (Object exception) {
-        if (mounted) setState(() => error = exception.toString());
+        if (mounted) {
+          setState(() {
+            busy = false;
+            error = exception.toString();
+          });
+        }
       },
     );
   }
@@ -216,12 +221,19 @@ class _ConsumerSubscriptionScreenState
       error = null;
     });
     try {
-      await store.buyNonConsumable(
+      final purchaseStarted = await store.buyNonConsumable(
         purchaseParam: PurchaseParam(
           productDetails: product!,
           applicationUserName: storeAccountId,
         ),
       );
+      if (!purchaseStarted && mounted) {
+        setState(() {
+          busy = false;
+          error =
+              'Der App Store konnte den Kaufdialog nicht öffnen. Bitte prüfe den Sandbox-Account und versuche es erneut.';
+        });
+      }
     } catch (exception) {
       if (mounted) {
         setState(() {
