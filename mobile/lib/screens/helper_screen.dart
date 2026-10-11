@@ -225,6 +225,14 @@ class _HelperScreenState extends State<HelperScreen> {
   }
 
   Future<void> clearAssignment() async {
+    await setAssignmentStatus('available');
+  }
+
+  Future<void> deployAssignment() async {
+    await setAssignmentStatus('deployed');
+  }
+
+  Future<void> setAssignmentStatus(String status) async {
     final assignment = data?['assignment'] as Map<String, dynamic>?;
     if (assignment == null) return;
     setState(() => busy = true);
@@ -233,7 +241,7 @@ class _HelperScreenState extends State<HelperScreen> {
         'eventId': widget.eventId,
         'assignmentId': assignment['id'],
         'helperToken': widget.helperToken,
-        'status': 'available',
+        'status': status,
       });
       await load();
     } catch (e) {
@@ -393,6 +401,21 @@ class _HelperScreenState extends State<HelperScreen> {
                                   onPressed: busy ? null : clearAssignment,
                                   icon: const Icon(Icons.check_circle_outline),
                                   label: const Text('Wieder frei für Einsätze'),
+                                ),
+                              ),
+                            ),
+                          if (assignment != null && !deployed)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  onPressed: busy ? null : deployAssignment,
+                                  icon: const Icon(Icons.directions_run),
+                                  label: const Text('Bin im Einsatz'),
                                 ),
                               ),
                             ),

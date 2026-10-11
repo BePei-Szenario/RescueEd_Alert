@@ -10,14 +10,17 @@ export async function PATCH(request:Request,{params}:{params:Promise<{eventId:st
   const {eventId,helperId}=await params,authorization=await ownedEvent(eventId),{event,permissions}=authorization;
   if(!eventAuthenticated(authorization))return Response.json({error:"Bitte zuerst anmelden."},{status:401});
   if(!event)return Response.json({error:"Event nicht gefunden."},{status:404});
-  const {assignmentId,action}=await request.json() as {assignmentId?:string|null;action?:"checkout"},db=getDb();
+  const {assignmentId,action,removedAt}=await request.json() as {assignmentId?:string|null;action?:"checkout";removedAt?:unknown},db=getDb();
   if(assignmentId){const [unit]=await db.select({id:assignments.id}).from(assignments).where(and(eq(assignments.id,assignmentId),eq(assignments.eventId,event.id),isNull(assignments.removedAt))).limit(1);if(!unit)return Response.json({error:"Sanitätsmittel nicht gefunden."},{status:400})}
-  const [person]=await db.select({id:helpers.id,removedAt:helpers.removedAt,registrationSource:helpers.registrationSource}).from(helpers).where(and(eq(helpers.id,helperId),eq(helpers.eventId,event.id))).limit(1);
+  const [person]=await db.select({id:helpers.id,registeredAt:helpers.registeredAt,removedAt:helpers.removedAt,registrationSource:helpers.registrationSource}).from(helpers).where(and(eq(helpers.id,helperId),eq(helpers.eventId,event.id))).limit(1);
   if(!person)return Response.json({error:"Helfer nicht gefunden."},{status:404});
   if(action==="checkout"){
    if(!permissions?.manageHelpers)return Response.json({error:"Dieser Event-Zugang darf keine Helfer ausbuchen."},{status:403});
    if(person.removedAt)return Response.json({error:"Helfer wurde bereits ausgebucht."},{status:409});
-   const leftAt=new Date();
+   const now=new Date(),leftAt=removedAt===undefined?now:typeof removedAt==="string"?new Date(removedAt):new Date(Number.NaN);
+   if(Number.isNaN(leftAt.getTime()))return Response.json({error:"Bitte eine gültige Uhrzeit eingeben."},{status:400});
+   if(leftAt.getTime()<person.registeredAt.getTime())return Response.json({error:"Die Gehzeit darf nicht vor der Kommen-Zeit liegen."},{status:400});
+   if(leftAt.getTime()>now.getTime()+60_000)return Response.json({error:"Die Gehzeit darf nicht in der Zukunft liegen."},{status:400});
    await db.batch([
     db.update(helpers).set({removedAt:leftAt}).where(eq(helpers.id,helperId)),
     db.delete(helperDevices).where(eq(helperDevices.helperId,helperId)),
