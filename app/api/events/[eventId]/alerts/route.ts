@@ -1,6 +1,6 @@
-import {and,asc,eq,inArray,isNull} from "drizzle-orm";
+import {and,asc,eq,inArray,isNotNull,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
-import {alertAssignments,alertRecipients,alerts,assignments,helpers} from "@/db/schema";
+import {alertAssignments,alertRecipients,alerts,assignments,helperDevices,helpers} from "@/db/schema";
 import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
@@ -29,8 +29,9 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   if(message.length>150)return Response.json({error:"Die Alarmmeldung darf höchstens 150 Zeichen enthalten."},{status:400});
   const db=getDb(),units=await db.select({id:assignments.id,name:assignments.name}).from(assignments).where(and(eq(assignments.eventId,event.id),isNull(assignments.removedAt),inArray(assignments.id,assignmentIds)));
   if(units.length!==assignmentIds.length)return Response.json({error:"Mindestens ein ausgewähltes Sanitätsmittel ist ungültig."},{status:400});
-  const recipients=await db.select({id:helpers.id,assignmentId:helpers.assignmentId}).from(helpers).where(and(eq(helpers.eventId,event.id),eq(helpers.registrationSource,"qr"),isNull(helpers.removedAt),inArray(helpers.assignmentId,assignmentIds)));
-  if(units.some(unit=>!recipients.some(recipient=>recipient.assignmentId===unit.id)))return Response.json({error:"Jedes Sanitätsmittel benötigt mindestens einen per QR-Code eingecheckten Helfer für eine Alarmierung."},{status:400});
+  const recipientRows=await db.select({id:helpers.id,assignmentId:helpers.assignmentId}).from(helpers).innerJoin(helperDevices,eq(helperDevices.helperId,helpers.id)).where(and(eq(helpers.eventId,event.id),isNull(helpers.removedAt),inArray(helpers.assignmentId,assignmentIds),isNull(helperDevices.disabledAt),isNotNull(helperDevices.pushTokenEncrypted)));
+  const recipients=[...new Map(recipientRows.map(recipient=>[recipient.id,recipient])).values()];
+  if(units.some(unit=>!recipients.some(recipient=>recipient.assignmentId===unit.id)))return Response.json({error:"Jedes Sanitätsmittel benötigt mindestens einen in der App verbundenen Helfer für eine Alarmierung."},{status:400});
   const alertId=id("alt"),now=new Date();
   await db.batch([
    db.insert(alerts).values({id:alertId,eventId:event.id,createdByUserId:user?.id||event.ownerUserId,createdByEventAccessId:access?.id||null,message:message||null,createdAt:now}),

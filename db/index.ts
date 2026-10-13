@@ -59,3 +59,20 @@ export function getDb() {
   state.rescueEdDb ??= createDb();
   return state.rescueEdDb;
 }
+
+/**
+ * Runs a short, synchronous critical section while holding SQLite's write lock.
+ * Prepare async work (hashing/encryption) before entering this callback.
+ */
+export function withImmediateTransaction<T>(callback: (connection: DatabaseSync) => T): T {
+  const connection = sqlite();
+  connection.exec("BEGIN IMMEDIATE");
+  try {
+    const result = callback(connection);
+    connection.exec("COMMIT");
+    return result;
+  } catch (error) {
+    connection.exec("ROLLBACK");
+    throw error;
+  }
+}

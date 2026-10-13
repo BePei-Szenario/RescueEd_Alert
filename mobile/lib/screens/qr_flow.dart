@@ -7,6 +7,48 @@ const debugAttendanceQr = String.fromEnvironment(
   'RESCUEED_DEBUG_ATTENDANCE_QR',
 );
 
+String normalizePersonalDutyCode(String value) =>
+    value.replaceAll(RegExp(r'\D'), '');
+
+Map<String, dynamic> buildComeAttendancePayload({
+  required bool useDutyCode,
+  required bool scannedOnDevice,
+  required String dutyCode,
+  required String firstName,
+  required String lastName,
+  required String qualification,
+  required String phone,
+}) {
+  if (useDutyCode) {
+    if (!scannedOnDevice) {
+      throw ApiException(
+        'Der persönliche Dienstcode kann nur nach dem Scannen des Event-QR-Codes auf diesem Gerät verwendet werden.',
+        400,
+      );
+    }
+    final normalized = normalizePersonalDutyCode(dutyCode);
+    if (!RegExp(r'^\d{8}$').hasMatch(normalized)) {
+      throw ApiException(
+        'Bitte den achtstelligen persönlichen Dienstcode eingeben.',
+        400,
+      );
+    }
+    return {'checkInMethod': 'duty-code', 'dutyCode': normalized};
+  }
+  if (firstName.trim().isEmpty ||
+      lastName.trim().isEmpty ||
+      qualification.trim().isEmpty) {
+    throw ApiException('Bitte alle Pflichtangaben ausfüllen.', 400);
+  }
+  return {
+    'checkInMethod': 'spontaneous',
+    'firstName': firstName.trim(),
+    'lastName': lastName.trim(),
+    'qualification': qualification.trim(),
+    'phone': phone.trim(),
+  };
+}
+
 class HelperCredentials {
   const HelperCredentials(this.eventId, this.token, {this.ended = false});
   final String eventId, token;
@@ -34,10 +76,12 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
   final firstName = TextEditingController(),
       lastName = TextEditingController(),
       qualification = TextEditingController(),
-      phone = TextEditingController();
+      phone = TextEditingController(),
+      dutyCode = TextEditingController();
   Uri? qr;
   Map<String, dynamic>? info;
-  bool busy = false, detected = false;
+  bool busy = false, detected = false, scannedOnDevice = false;
+  bool useDutyCode = true;
   String? error;
 
   @override
@@ -48,7 +92,7 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
         (debugAttendanceQr.isEmpty ? null : Uri.tryParse(debugAttendanceQr));
     if (initial != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openQr(initial);
+        _openQr(initial, scanned: false);
       });
     }
   }
@@ -60,6 +104,7 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
     lastName.dispose();
     qualification.dispose();
     phone.dispose();
+    dutyCode.dispose();
     super.dispose();
   }
 
@@ -69,10 +114,10 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
     if (raw == null) return;
     final parsed = Uri.tryParse(raw);
     if (parsed == null) return;
-    await _openQr(parsed);
+    await _openQr(parsed, scanned: true);
   }
 
-  Future<void> _openQr(Uri parsed) async {
+  Future<void> _openQr(Uri parsed, {required bool scanned}) async {
     if (detected) return;
     if (parsed.path != '/event-attendance' ||
         parsed.queryParameters['eventId'] == null ||
@@ -84,6 +129,8 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
     await scanner.stop();
     setState(() {
       qr = parsed;
+      scannedOnDevice = scanned;
+      useDutyCode = scanned;
       busy = true;
       error = null;
     });
@@ -124,17 +171,16 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
           Navigator.pop(context, const HelperCredentials('', '', ended: true));
         }
       } else {
-        if (firstName.text.trim().isEmpty ||
-            lastName.text.trim().isEmpty ||
-            qualification.text.trim().isEmpty) {
-          throw ApiException('Bitte alle Angaben ausfüllen.', 400);
-        }
-        final result = await widget.api.submitAttendance(qr!, {
-          'firstName': firstName.text.trim(),
-          'lastName': lastName.text.trim(),
-          'qualification': qualification.text.trim(),
-          'phone': phone.text.trim(),
-        });
+        final values = buildComeAttendancePayload(
+          useDutyCode: useDutyCode,
+          scannedOnDevice: scannedOnDevice,
+          dutyCode: dutyCode.text,
+          firstName: firstName.text,
+          lastName: lastName.text,
+          qualification: qualification.text,
+          phone: phone.text,
+        );
+        final result = await widget.api.submitAttendance(qr!, values);
         final eventId = qr!.queryParameters['eventId']!,
             token = result['helperToken'] as String;
         await widget.store.saveHelperSession(eventId, token);
@@ -227,31 +273,96 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
                 ),
                 const SizedBox(height: 18),
                 if (!leave) ...[
-                  TextField(
-                    controller: firstName,
-                    decoration: const InputDecoration(labelText: 'Vorname'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: lastName,
-                    decoration: const InputDecoration(labelText: 'Nachname'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: qualification,
-                    decoration: const InputDecoration(
-                      labelText: 'Qualifikation',
+                  if (scannedOnDevice) ...[
+                    Text(
+                      'Wie möchtest du dich einchecken?',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: phone,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Telefonnummer (freiwillig)',
-                      hintText: '+49 171 1234567',
+                    RadioGroup<bool>(
+                      groupValue: useDutyCode,
+                      onChanged: (value) => setState(() {
+                        useDutyCode = value ?? true;
+                        error = null;
+                      }),
+                      child: Column(
+                        children: [
+                          RadioListTile<bool>(
+                            value: true,
+                            title: const Text(
+                              'Mit persönlichem Dienstcode',
+                            ),
+                            subtitle: const Text(
+                              'Übernimmt deinen gebuchten Dienst und verbindet dieses Gerät für Alarmierungen.',
+                            ),
+                          ),
+                          RadioListTile<bool>(
+                            value: false,
+                            title: const Text(
+                              'Ohne Dienstcode einchecken',
+                            ),
+                            subtitle: const Text(
+                              'Für spontane Helfer ohne vorherige Dienstbuchung.',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ] else
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(14),
+                        child: Text(
+                          'Ein persönlicher Dienstcode kann nur verwendet werden, nachdem du den Event-QR-Code mit diesem Gerät gescannt hast.',
+                        ),
+                      ),
+                    ),
+                  if (useDutyCode && scannedOnDevice) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: dutyCode,
+                      keyboardType: TextInputType.number,
+                      autofillHints: const [AutofillHints.oneTimeCode],
+                      maxLength: 9,
+                      decoration: const InputDecoration(
+                        labelText: 'Persönlicher achtstelliger Dienstcode',
+                        hintText: '1234 5678',
+                        helperText:
+                            'Keine E-Mail-Adresse erforderlich. Der Code wird nur einmal verwendet.',
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: firstName,
+                      autofillHints: const [AutofillHints.givenName],
+                      decoration: const InputDecoration(labelText: 'Vorname'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: lastName,
+                      autofillHints: const [AutofillHints.familyName],
+                      decoration: const InputDecoration(labelText: 'Nachname'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: qualification,
+                      decoration: const InputDecoration(
+                        labelText: 'Qualifikation',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: phone,
+                      keyboardType: TextInputType.phone,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      decoration: const InputDecoration(
+                        labelText: 'Telefonnummer (freiwillig)',
+                        hintText: '+49 171 1234567',
+                      ),
+                    ),
+                  ],
                 ] else
                   const Card(
                     child: Padding(

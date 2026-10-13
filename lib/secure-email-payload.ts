@@ -1,5 +1,5 @@
 
-export type EncryptedMailType="customer_contact"|"mfa"|"registration_link"|"password_reset"|"order_confirmation"|"event_deletion_summary"|"withdrawal_confirmation";
+export type EncryptedMailType="customer_contact"|"mfa"|"registration_link"|"password_reset"|"order_confirmation"|"event_deletion_summary"|"withdrawal_confirmation"|"duty_invitation"|"duty_confirmation"|"duty_reminder"|"duty_cancellation";
 export const OUTBOX_PAYLOAD_RETENTION_MS=7*24*60*60*1000;
 export function outboxPayloadExpiresAt(now:Date){return new Date(now.getTime()+OUTBOX_PAYLOAD_RETENTION_MS)}
 

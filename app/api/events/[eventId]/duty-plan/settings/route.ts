@@ -1,0 +1,12 @@
+import {eq} from "drizzle-orm";
+import {getDb} from "@/db";
+import {auditLogs,organizations} from "@/db/schema";
+import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
+import {rejectCrossSiteMutation} from "@/lib/request-security";
+import {id} from "@/lib/security";
+
+async function authorize(eventId:string){const authorization=await ownedEvent(eventId);if(!eventAuthenticated(authorization))return {error:Response.json({error:"Bitte zuerst anmelden."},{status:401})} as const;if(!authorization.event)return {error:Response.json({error:"Event nicht gefunden."},{status:404})} as const;if(!authorization.user||!authorization.permissions?.manageAssignments)return {error:Response.json({error:"Dieser Zugang darf die Dienstplan-Einstellungen nicht ändern."},{status:403})} as const;return {authorization} as const}
+
+export async function GET(_request:Request,{params}:{params:Promise<{eventId:string}>}){const {eventId}=await params,result=await authorize(eventId);if("error" in result)return result.error;const [organization]=await getDb().select({enabled:organizations.dutyPlanEnabled,signature:organizations.dutyEmailSignature}).from(organizations).where(eq(organizations.id,result.authorization.event!.organizationId)).limit(1);return Response.json({enabled:organization?.enabled??false,signature:organization?.signature??""},{headers:{"cache-control":"no-store"}})}
+
+export async function PATCH(request:Request,{params}:{params:Promise<{eventId:string}>}){const bad=rejectCrossSiteMutation(request);if(bad)return bad;try{const {eventId}=await params,result=await authorize(eventId);if("error" in result)return result.error;const body=await request.json() as {signature?:unknown};if(typeof body.signature!=="string"||!body.signature.trim()||body.signature.length>4000)return Response.json({error:"Bitte eine eigene Signatur mit höchstens 4.000 Zeichen angeben."},{status:400});const signature=body.signature.trim(),event=result.authorization.event!,user=result.authorization.user!,now=new Date();await getDb().batch([getDb().update(organizations).set({dutyEmailSignature:signature}).where(eq(organizations.id,event.organizationId)),getDb().insert(auditLogs).values({id:id("aud"),actorUserId:user.id,action:"duty_plan.signature_updated",entityType:"organization",entityId:event.organizationId,createdAt:now})]);return Response.json({ok:true,enabled:true,signature})}catch(error){console.error("duty_settings_update_failed",error);return Response.json({error:"Signatur konnte nicht gespeichert werden."},{status:500})}}

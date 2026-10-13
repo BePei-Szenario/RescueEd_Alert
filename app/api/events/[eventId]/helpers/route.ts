@@ -17,10 +17,10 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   if(firstName.length>80||lastName.length>80||qualification.length>100||(phone?.length||0)>40)return Response.json({error:"Eine Eingabe ist zu lang."},{status:400});
   if(phone&&!/^[0-9+()/.\s-]{3,40}$/.test(phone))return Response.json({error:"Bitte eine gültige Telefonnummer angeben oder das freiwillige Feld leer lassen."},{status:400});
   const name=`${firstName} ${lastName}`;
-  const db=getDb(),helperToken=crypto.randomUUID()+crypto.randomUUID(),helperId=id("hlp"),registeredAt=new Date(),sessionTokenHash=await tokenHash(helperToken);
+  const db=getDb(),helperId=id("hlp"),registeredAt=new Date(),sessionTokenHash=await tokenHash(crypto.randomUUID()+crypto.randomUUID());
   const inserted=await db.all(sql`INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,phone,session_token_hash,registration_source,registered_at,removed_at)
     SELECT ${helperId},${event.id},NULL,${name},${firstName},${lastName},${qualification},${phone},${sessionTokenHash},'manual',${registeredAt.getTime()},NULL
-    WHERE (SELECT COUNT(*) FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL) < ${event.helperLimit}
+    WHERE ((SELECT COUNT(*) FROM duty_bookings db JOIN duty_shifts ds ON ds.id=db.shift_id WHERE ds.event_id=${event.id} AND ds.reserved=0) + (SELECT COALESCE(SUM(ds.capacity),0) FROM duty_shifts ds WHERE ds.event_id=${event.id} AND ds.reserved=1) + (SELECT COUNT(*) FROM helpers h WHERE h.event_id=${event.id} AND h.removed_at IS NULL AND NOT EXISTS (SELECT 1 FROM duty_bookings linked WHERE linked.helper_id=h.id))) < ${event.helperLimit}
     AND NOT EXISTS (SELECT 1 FROM helpers WHERE event_id=${event.id} AND removed_at IS NULL AND lower(trim(name))=lower(trim(${name}))) RETURNING id`);
   if(inserted.length!==1)return Response.json({error:"Die maximale Helferzahl ist erreicht oder diese Person bereits anwesend."},{status:409});
   return Response.json({ok:true,helperId,registeredAt:registeredAt.toISOString()},{status:201});

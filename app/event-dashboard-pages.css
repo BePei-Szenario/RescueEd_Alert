@@ -59,8 +59,12 @@
 
 @media (max-width: 580px) {
   .dashboard-tabs, .dashboard-pages { width: min(100% - 1.25rem, 1450px); }
-  .dashboard-tabs button { flex: 1; justify-content: center; padding-inline: 0.55rem; }
+  .dashboard-tabs { overflow-x: auto; }
+  .dashboard-tabs button { flex: 0 0 auto; justify-content: center; padding-inline: 0.7rem; white-space: nowrap; }
 }
+
+.unplanned-helper-badge { display: inline-flex; margin-left: .45rem; border-radius: 999px; background: #ffedd5; padding: .15rem .45rem; color: #9a3412; font-size: .66rem; font-style: normal; font-weight: 900; line-height: 1.3; vertical-align: middle; }
+.helper-person:has(.unplanned-helper-badge) { border-radius: .55rem; background: #fff7ed; padding: .35rem .45rem; }
 
 @media print {
   .dashboard-tabs { display: none !important; }

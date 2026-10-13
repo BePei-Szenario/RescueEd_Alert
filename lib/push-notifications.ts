@@ -1,5 +1,5 @@
 import "server-only";
-import {and,desc,eq,isNull} from "drizzle-orm";
+import {and,desc,eq,isNotNull,isNull} from "drizzle-orm";
 import {getDb} from "@/db";
 import {alertRecipients,helperDevices} from "@/db/schema";
 import {decryptPushToken} from "@/lib/push-token-crypto";
@@ -46,7 +46,7 @@ function unregistered(status:number,payload:string){return status===404||payload
 export async function dispatchAlertPush(alertId:string,eventId:string){
  const account=serviceAccount();
  if(!account||!process.env.PUSH_TOKEN_ENCRYPTION_KEY)return {configured:false,attempted:0,sent:0};
- const db=getDb(),deviceRows=await db.select({id:helperDevices.id,helperId:helperDevices.helperId,platform:helperDevices.platform,tone:helperDevices.alarmTone,encrypted:helperDevices.pushTokenEncrypted}).from(alertRecipients).innerJoin(helperDevices,eq(helperDevices.helperId,alertRecipients.helperId)).where(and(eq(alertRecipients.alertId,alertId),isNull(alertRecipients.acknowledgedAt),isNull(helperDevices.disabledAt))).orderBy(helperDevices.helperId,desc(helperDevices.lastSeenAt),desc(helperDevices.id));
+ const db=getDb(),deviceRows=await db.select({id:helperDevices.id,helperId:helperDevices.helperId,platform:helperDevices.platform,tone:helperDevices.alarmTone,encrypted:helperDevices.pushTokenEncrypted}).from(alertRecipients).innerJoin(helperDevices,eq(helperDevices.helperId,alertRecipients.helperId)).where(and(eq(alertRecipients.alertId,alertId),isNull(alertRecipients.acknowledgedAt),isNull(helperDevices.disabledAt),isNotNull(helperDevices.pushTokenEncrypted))).orderBy(helperDevices.helperId,desc(helperDevices.lastSeenAt),desc(helperDevices.id));
  const deviceCount=new Map<string,number>(),devices=deviceRows.filter(device=>{const count=deviceCount.get(device.helperId)||0;if(count>=MAX_ACTIVE_DEVICES_PER_HELPER)return false;deviceCount.set(device.helperId,count+1);return true});
  if(!devices.length)return {configured:true,attempted:0,sent:0};
  const bearer=await accessToken(account),now=new Date();let sent=0;

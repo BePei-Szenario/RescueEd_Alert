@@ -54,7 +54,7 @@ export async function POST(request:Request){
     db.update(users).set({fullName:"Gelöschter Event-Benutzer",email:`deleted-${crypto.randomUUID()}@invalid.local`,passwordHash:deletedMemberPasswordHash,status:"deleted" as const,mfaEnabled:false,emailVerifiedAt:null,lastLoginAt:null,deletedAt:now}).where(eq(users.id,member.id))
    ]),
    db.update(users).set({fullName:"Gelöschter Kunde",email:anonymousEmail,passwordHash:await hashSecret(crypto.randomUUID()+crypto.randomUUID()),status:"deleted",mfaEnabled:false,emailVerifiedAt:null,lastLoginAt:null,deletedAt:now}).where(eq(users.id,user.id)),
-   db.update(organizations).set({name:"Gelöschter Kunde",billingEmail:anonymousEmail,billingStreet:null,billingHouseNumber:null,billingPostalCode:null,billingCity:null,complimentaryAccess:false,unlimitedEventDuration:false}).where(eq(organizations.id,organization.id)),
+   db.update(organizations).set({name:"Gelöschter Kunde",billingEmail:anonymousEmail,billingStreet:null,billingHouseNumber:null,billingPostalCode:null,billingCity:null,complimentaryAccess:false,unlimitedEventDuration:false,dutyPlanEnabled:false,dutyEmailSignature:""}).where(eq(organizations.id,organization.id)),
    db.insert(auditLogs).values({id:id("aud"),actorUserId:user.id,action:"account.deleted_by_customer",entityType:"deleted_customer_archive",entityId:archiveId,metadataJson:JSON.stringify({organizationId:organization.id,legalAcceptanceCount:acceptances.length}),createdAt:now})
   ]);
   await clearRateLimit("account-delete-user",account.id);

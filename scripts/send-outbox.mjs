@@ -27,6 +27,7 @@ function payload(row) {
   return data;
 }
 function euro(cents) { return (Number(cents || 0) / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" }); }
+function berlin(value) { return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "full", timeStyle: "short" }).format(new Date(value)); }
 function body(data) {
   const lines = [String(data.message || "")];
   if (data.template === "security_code") lines.push("", `Sicherheitscode: ${data.securityCode}`, `Gültig bis: ${data.expiresAt}`);
@@ -45,7 +46,13 @@ function body(data) {
   if (data.template === "withdrawal_confirmation") {
     lines.push("", `Widerrufsreferenz: ${data.withdrawalReference}`, `Eingegangen am: ${data.requestedAt}`, `Store: ${data.store}`, `Produkt: ${data.productId}`, "", String(data.statement || ""), "", "Der Widerruf wird geprüft und eine erforderliche Rückerstattung über den beim Kauf verwendeten Store bearbeitet. Die Kündigung künftiger Verlängerungen ist davon getrennt.");
   }
-  lines.push("", "---", String(data.signature || ""));
+  if (data.template === "duty_invitation") lines.push("", `Dienstplan öffnen: ${data.invitationUrl}`, `Der Link ist bis ${berlin(data.expiresAt)} gültig.`);
+  if (["duty_confirmation", "duty_reminder", "duty_cancellation"].includes(data.template)) for (const duty of Array.isArray(data.duties) ? data.duties : []) {
+    lines.push("", String(duty.title || "Dienst"), `${berlin(duty.startAt)} bis ${berlin(duty.endAt)}`, `Einsatzmittel: ${duty.assignmentName || "–"}`);
+    if (duty.code) lines.push(`Persönlicher Dienstcode: ${duty.code}`);
+  }
+  if (String(data.template || "").startsWith("duty_")) lines.push("", `Diese E-Mail wurde im Namen von ${String(data.organizationName || "dem Veranstalter")} über RescueEd Alert versendet.`, "Bitte antworten Sie nicht auf diese E-Mail.", "", String(data.customerSignature || ""));
+  else lines.push("", "---", String(data.signature || ""));
   return lines.join("\n");
 }
 function header(value) { if (/[\r\n]/.test(value)) throw new Error("Ungültiger E-Mail-Header."); return value; }
@@ -73,21 +80,24 @@ function send(account, content) {
 }
 // An interrupted send is ambiguous; do not resend it automatically.
 db.prepare("UPDATE email_outbox SET status='failed' WHERE status='processing'").run();
-const rows = db.prepare("SELECT * FROM email_outbox WHERE status='pending' ORDER BY created_at LIMIT 50").all();
+const rows = db.prepare("SELECT * FROM email_outbox WHERE status='pending' AND (scheduled_at IS NULL OR scheduled_at<=?) ORDER BY COALESCE(scheduled_at,created_at),created_at LIMIT 50").all(Date.now());
 for (const row of rows) {
   db.exec("BEGIN IMMEDIATE");
   const claimed = db.prepare("UPDATE email_outbox SET status='processing' WHERE id=? AND status='pending'").run(row.id).changes === 1;
   db.exec("COMMIT");
   if (!claimed) continue;
+  const dutyMail=String(row.type).startsWith("duty_");
   try {
     if (row.sensitive_expires_at && row.sensitive_expires_at <= Date.now()) throw new Error("Sicherheits-E-Mail abgelaufen.");
     const account = row.sender_email.toLowerCase() === process.env.MAIL_FROM_MFA.toLowerCase() ? "mfa" : row.sender_email.toLowerCase() === process.env.MAIL_FROM_CONTACT.toLowerCase() ? "kontakt" : null;
     if (!account) throw new Error("Absender ist nicht freigegeben.");
     await send(account, message(row, payload(row)));
-    db.prepare("UPDATE email_outbox SET status='sent', sent_at=?, payload_json='{}' WHERE id=? AND status='processing'").run(Date.now(), row.id);
+    const sentAt=Date.now();
+    db.prepare("UPDATE email_outbox SET status='sent', sent_at=?, payload_json='{}', recipient_email=CASE WHEN ? THEN 'redacted@invalid.local' ELSE recipient_email END WHERE id=? AND status='processing'").run(sentAt,dutyMail?1:0,row.id);
+    if(row.type==="duty_reminder"&&row.duty_booking_id)db.prepare("UPDATE duty_bookings SET reminder_sent_at=? WHERE id=?").run(sentAt,row.duty_booking_id);
     process.stdout.write(`E-Mail an SMTP übergeben: ${row.id}\n`);
   } catch (error) {
-    db.prepare("UPDATE email_outbox SET status='failed', payload_json=CASE WHEN sensitive_expires_at IS NOT NULL AND sensitive_expires_at <= ? THEN '{}' ELSE payload_json END WHERE id=? AND status='processing'").run(Date.now(), row.id);
+    db.prepare("UPDATE email_outbox SET status='failed', payload_json=CASE WHEN sensitive_expires_at IS NOT NULL AND sensitive_expires_at <= ? THEN '{}' ELSE payload_json END, recipient_email=CASE WHEN ? THEN 'redacted@invalid.local' ELSE recipient_email END WHERE id=? AND status='processing'").run(Date.now(),dutyMail?1:0,row.id);
     process.stderr.write(`E-Mail-Auftrag fehlgeschlagen (${row.id}): ${error.message}\n`);
   }
 }

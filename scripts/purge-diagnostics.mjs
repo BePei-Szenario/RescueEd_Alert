@@ -76,7 +76,8 @@ try {
   result.expiredTokensDeleted += db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now).changes;
   result.expiredTokensDeleted += db.prepare("DELETE FROM event_access_sessions WHERE expires_at <= ?").run(now).changes;
   result.outboxPayloadsScrubbed = db.prepare(`UPDATE email_outbox
-    SET payload_json='{}', status=CASE WHEN status IN ('pending','processing') THEN 'failed' ELSE status END
+    SET payload_json='{}', status=CASE WHEN status IN ('pending','processing') THEN 'failed' ELSE status END,
+        recipient_email=CASE WHEN type LIKE 'duty_%' THEN 'redacted@invalid.local' ELSE recipient_email END
     WHERE payload_json <> '{}' AND (
       (sensitive_expires_at IS NOT NULL AND sensitive_expires_at <= ?)
       OR (sensitive_expires_at IS NULL AND created_at <= ?)
