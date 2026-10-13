@@ -22,7 +22,7 @@ async function decrypt(value:string,aadValue:string){
 
 export function normalizeDutyEmail(value:string){return value.trim().toLowerCase()}
 export async function hashDutyEmail(email:string){return crypto.subtle.digest("SHA-256",encoder.encode(normalizeDutyEmail(email))).then(buffer=>[...new Uint8Array(buffer)].map(byte=>byte.toString(16).padStart(2,"0")).join(""))}
-export function maskDutyEmail(email:string){const [local,domain]=normalizeDutyEmail(email).split("@");if(!local||!domain)return "***";return `${local.slice(0,1)}***@${domain}`}
+export function maskDutyEmail(email:string){if(!email.trim())return "";const [local,domain]=normalizeDutyEmail(email).split("@");if(!local||!domain)return "***";return `${local.slice(0,1)}***@${domain}`}
 
 export function generateDutyCode(){const bytes=crypto.getRandomValues(new Uint32Array(1));return String(bytes[0]%100_000_000).padStart(8,"0")}
 export function normalizeDutyCode(value:string){return value.replace(/\D/g,"")}

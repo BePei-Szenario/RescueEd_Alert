@@ -1,0 +1,21 @@
+"use client";
+import {useEffect,useRef,useState} from "react";
+
+type Shift={id:string;title:string;capacity:number;reservedCount:number;bookings:{id:string;firstName:string;lastName:string;qualification:string|null}[]};
+export function DutyReservations({eventId,shiftId,onClose,onSaved}:{eventId:string;shiftId:string;onClose:()=>void;onSaved:()=>Promise<void>}){
+ const dialog=useRef<HTMLDialogElement>(null),[shift,setShift]=useState<Shift|null>(null),[count,setCount]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
+ const base=`/api/events/${encodeURIComponent(eventId)}/duty-plan`;
+ useEffect(()=>{const element=dialog.current;if(element&&!element.open)element.showModal()},[]);
+ useEffect(()=>{const controller=new AbortController();fetch(base,{cache:"no-store",signal:controller.signal}).then(async response=>{const data=await response.json() as {shifts?:Shift[];error?:string};if(!response.ok)throw new Error(data.error||"Dienst konnte nicht geladen werden.");const current=data.shifts?.find(item=>item.id===shiftId);if(!current)throw new Error("Dienst nicht mehr vorhanden.");setShift(current);setCount(String(current.reservedCount))}).catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:"Laden fehlgeschlagen.")});return()=>controller.abort()},[base,shiftId]);
+ async function save(event:React.FormEvent){event.preventDefault();if(!shift)return;setBusy(true);setError("");setNotice("");try{const response=await fetch(`${base}/shifts/${encodeURIComponent(shiftId)}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({reservedCount:Number(count)})}),body=await response.json() as {error?:string};if(!response.ok)throw new Error(body.error||"Reservierungen konnten nicht gespeichert werden.");await onSaved();const refreshed=await fetch(base,{cache:"no-store"}),data=await refreshed.json() as {shifts?:Shift[];error?:string};if(!refreshed.ok)throw new Error(data.error||"Aktualisierung fehlgeschlagen.");const current=data.shifts?.find(item=>item.id===shiftId);if(!current)throw new Error("Dienst nicht mehr vorhanden.");setShift(current);setCount(String(current.reservedCount));setNotice("Reservierungen gespeichert. Die freien Plätze sind aktualisiert.")}catch(reason){setError(reason instanceof Error?reason.message:"Speichern fehlgeschlagen.")}finally{setBusy(false)}}
+ const remaining=shift?Math.max(0,shift.capacity-shift.bookings.length):0;
+ return <dialog ref={dialog} className="duty-reservations duty-plan" aria-labelledby="reservation-title" onCancel={event=>{if(busy)event.preventDefault()}} onClose={onClose}>
+  <header><div><h2 id="reservation-title">Besetzung & Reservierungen</h2><p>{shift?.title||"Dienst wird geladen …"}</p></div><button type="button" className="secondary" disabled={busy} onClick={onClose} aria-label="Reservierungen schließen">Schließen</button></header>
+  {error&&<p className="duty-message error" role="alert">{error}</p>}{notice&&<p className="duty-message success" role="status">{notice}</p>}
+  {shift&&<><form onSubmit={save}>
+   <label>Reservierte Plätze<input autoFocus required type="number" min="0" max={remaining} step="1" value={count} disabled={busy} onChange={event=>{setCount(event.target.value);setNotice("")}}/><small>Erhöhen sperrt unbesetzte Plätze für die Selbstbuchung. Verringern gibt Plätze wieder frei. Gebuchte Plätze bleiben erhalten.</small></label>
+   <p aria-live="polite">{shift.bookings.length} gebucht · {Math.max(0,remaining-(Number(count)||0))} nach dem Speichern frei · {shift.capacity} insgesamt</p>
+   <div className="reservation-actions"><button type="button" className="secondary" disabled={busy} onClick={()=>setCount("0")}>Alle Reservierungen freigeben</button><button className="primary" disabled={busy}>{busy?"Wird gespeichert …":"Reservierungen speichern"}</button></div>
+  </form><section aria-labelledby="reservation-bookings"><h3 id="reservation-bookings">Eingetragene Personen ({shift.bookings.length})</h3>{shift.bookings.length?<ul>{shift.bookings.map(person=><li key={person.id}><b>{person.firstName} {person.lastName}</b><span>{person.qualification||"Keine Qualifikation angegeben"}</span></li>)}</ul>:<p>Noch niemand eingetragen.</p>}</section></>}
+ </dialog>;
+}

@@ -57,9 +57,9 @@ try{
   assert.equal((await request(`/api/events/${eventId}/alerts`,{},helperCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/qr?kind=come`,{},helperCookie)).status,403);
 
-  const assignmentId=`asg_${randomUUID()}`;
+  const assignmentId=`asg_${randomUUID()}`,alarmHelperId=`hlp_${randomUUID()}`;
   db.prepare("INSERT INTO assignments (id,event_id,name,created_at) VALUES (?,?,?,?)").run(assignmentId,eventId,"Alarm-Testmittel",now);
-  db.prepare("INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,phone,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(`hlp_${randomUUID()}`,eventId,assignmentId,"Geheime Person","Geheime","Person","NotSan","+49 000",hash(randomUUID()),"qr",now);
+  db.prepare("INSERT INTO helpers (id,event_id,assignment_id,name,first_name,last_name,qualification,phone,session_token_hash,registration_source,registered_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(alarmHelperId,eventId,assignmentId,"Geheime Person","Geheime","Person","NotSan","+49 000",hash(randomUUID()),"qr",now);
   const alarmCookie=await login(codeFor.alarm_operator);
   assert.ok(alarmCookie);
   const secondAlarmCookie=await login(codeFor.alarm_operator);
@@ -72,7 +72,10 @@ try{
   assert.equal(JSON.stringify(alarmPayload).includes("Geheime Person"),false);
   const alarmUnit=alarmPayload.assignments.find(item=>item.id===assignmentId);
   assert.equal(alarmUnit.activeHelperCount,1);
-  assert.equal(alarmUnit.activeQrHelperCount,1);
+  assert.equal(alarmUnit.activeQrHelperCount,0,"QR-Anwesenheit allein darf keine Alarmierbarkeit vortäuschen.");
+  db.prepare("INSERT INTO helper_devices (id,helper_id,platform,last_seen_at,push_token_hash,push_token_encrypted) VALUES (?,?,?,?,?,?)").run(`dev_${randomUUID()}`,alarmHelperId,"android",now,hash(randomUUID()),"test-only-not-a-real-push-token");
+  const connectedPayload=await (await request(`/api/events/${eventId}`,{},alarmCookie)).json();
+  assert.equal(connectedPayload.assignments.find(item=>item.id===assignmentId).activeQrHelperCount,1,"Ein aktives verbundenes Gerät macht den Helfer alarmierbar.");
   assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({firstName:"Nicht",lastName:"Erlaubt",qualification:"Test"})},alarmCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/assignments`,{method:"POST",body:JSON.stringify({name:"Nicht erlaubt"})},alarmCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/alerts`,{},alarmCookie)).status,200);

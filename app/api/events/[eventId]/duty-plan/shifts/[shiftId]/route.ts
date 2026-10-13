@@ -12,15 +12,19 @@ export async function PATCH(request:Request,{params}:{params:Promise<{eventId:st
  try{
   const {eventId,shiftId}=await params,auth=await authorize(eventId);if("error" in auth)return auth.error;const event=auth.authorization.event!,body=await request.json() as Record<string,unknown>;
   const [current]=await getDb().select().from(dutyShifts).where(and(eq(dutyShifts.id,shiftId),eq(dutyShifts.eventId,event.id))).limit(1);if(!current)return Response.json({error:"Dienst nicht gefunden."},{status:404});
-  const title=body.title===undefined?current.title:cleanDutyText(body.title,120),assignmentId=body.assignmentId===undefined?current.assignmentId:cleanDutyText(body.assignmentId,100),startAt=body.startAt===undefined?current.startAt:dutyDate(body.startAt),endAt=body.endAt===undefined?current.endAt:dutyDate(body.endAt),capacity=body.capacity===undefined?current.capacity:Number(body.capacity),reserved=body.reserved===undefined?current.reserved:body.reserved===true;
+  const title=body.title===undefined?current.title:cleanDutyText(body.title,120),assignmentId=body.assignmentId===undefined?current.assignmentId:cleanDutyText(body.assignmentId,100),startAt=body.startAt===undefined?current.startAt:dutyDate(body.startAt),endAt=body.endAt===undefined?current.endAt:dutyDate(body.endAt),capacity=body.capacity===undefined?current.capacity:Number(body.capacity),reservedCount=body.reservedCount===undefined?current.reservedCount:Number(body.reservedCount);
   if(!title||!assignmentId||!startAt||!endAt||!Number.isInteger(capacity))return Response.json({error:"Ungültige Dienstdaten."},{status:400});
   withImmediateTransaction(connection=>{
-   assertShiftWrite(connection,{eventId:event.id,shiftId,assignmentId,startAt:startAt.getTime(),endAt:endAt.getTime(),capacity,reserved});
+   // A concurrent booking may have consumed a held seat since the initial read.
+   // Never restore that old count while saving an unrelated shift edit.
+   const latest=connection.prepare("SELECT reserved_count FROM duty_shifts WHERE id=? AND event_id=?").get(shiftId,event.id) as {reserved_count:number}|undefined;
+   if(!latest||latest.reserved_count!==current.reservedCount)throw new DutyPlanConflict("Die Reservierungen wurden zwischenzeitlich geändert. Bitte den Dienst neu laden und erneut speichern.");
+   assertShiftWrite(connection,{eventId:event.id,shiftId,assignmentId,startAt:startAt.getTime(),endAt:endAt.getTime(),capacity,reservedCount});
    const conflicts=connection.prepare("SELECT b.id FROM duty_bookings b WHERE b.shift_id=? AND EXISTS (SELECT 1 FROM duty_bookings other JOIN duty_shifts os ON os.id=other.shift_id WHERE other.email_hash=b.email_hash AND other.id<>b.id AND os.event_id=? AND os.start_at<? AND os.end_at>?) LIMIT 1").get(shiftId,event.id,endAt.getTime(),startAt.getTime());
    if(conflicts)throw new DutyPlanConflict("Die neue Dienstzeit überschneidet sich mit einem weiteren Dienst einer eingetragenen Person.");
-   connection.prepare("UPDATE duty_shifts SET assignment_id=?,title=?,start_at=?,end_at=?,capacity=?,reserved=? WHERE id=? AND event_id=?").run(assignmentId,title,startAt.getTime(),endAt.getTime(),capacity,reserved?1:0,shiftId,event.id);
+   connection.prepare("UPDATE duty_shifts SET assignment_id=?,title=?,start_at=?,end_at=?,capacity=?,reserved_count=? WHERE id=? AND event_id=?").run(assignmentId,title,startAt.getTime(),endAt.getTime(),capacity,reservedCount,shiftId,event.id);
   });
-  return Response.json({ok:true,shift:{id:shiftId,title,assignmentId,startAt,endAt,capacity,reserved}});
+  return Response.json({ok:true,shift:{id:shiftId,title,assignmentId,startAt,endAt,capacity,reservedCount}});
  }catch(error){if(error instanceof DutyPlanConflict)return Response.json({error:error.message},{status:409});console.error("duty_shift_update_failed",error);return Response.json({error:"Dienst konnte nicht geändert werden."},{status:500})}
 }
 

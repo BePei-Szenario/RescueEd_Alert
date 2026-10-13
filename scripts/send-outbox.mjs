@@ -1,6 +1,7 @@
 import { createDecipheriv } from "node:crypto";
 import { spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
+import { currentDutyMail } from "./duty-mail-current.mjs";
 
 const required = ["DATABASE_PATH", "PUBLIC_BASE_URL", "EMAIL_PAYLOAD_KEY", "MAIL_FROM_MFA", "MAIL_FROM_CONTACT", "MSMTP_CONFIG"];
 for (const key of required) if (!process.env[key]) throw new Error(`${key} fehlt.`);
@@ -91,7 +92,13 @@ for (const row of rows) {
     if (row.sensitive_expires_at && row.sensitive_expires_at <= Date.now()) throw new Error("Sicherheits-E-Mail abgelaufen.");
     const account = row.sender_email.toLowerCase() === process.env.MAIL_FROM_MFA.toLowerCase() ? "mfa" : row.sender_email.toLowerCase() === process.env.MAIL_FROM_CONTACT.toLowerCase() ? "kontakt" : null;
     if (!account) throw new Error("Absender ist nicht freigegeben.");
-    await send(account, message(row, payload(row)));
+    const currentPayload=currentDutyMail(db,row,payload(row));
+    if(!currentPayload){
+      db.prepare("UPDATE email_outbox SET status='failed',payload_json='{}',recipient_email='redacted@invalid.local' WHERE id=? AND status='processing'").run(row.id);
+      process.stdout.write(`Veralteter Dienst-Mail-Auftrag verworfen: ${row.id}\n`);
+      continue;
+    }
+    await send(account, message(row, currentPayload));
     const sentAt=Date.now();
     db.prepare("UPDATE email_outbox SET status='sent', sent_at=?, payload_json='{}', recipient_email=CASE WHEN ? THEN 'redacted@invalid.local' ELSE recipient_email END WHERE id=? AND status='processing'").run(sentAt,dutyMail?1:0,row.id);
     if(row.type==="duty_reminder"&&row.duty_booking_id)db.prepare("UPDATE duty_bookings SET reminder_sent_at=? WHERE id=?").run(sentAt,row.duty_booking_id);
