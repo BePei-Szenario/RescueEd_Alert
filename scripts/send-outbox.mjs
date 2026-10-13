@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { currentDutyMail } from "./duty-mail-current.mjs";
 import { canonicalDutyInvitationUrl } from "../lib/duty-invitation.mjs";
+import {deleteCompletedSummary} from "./operational-mail-retention.mjs";
 
 const required = ["DATABASE_PATH", "PUBLIC_BASE_URL", "EMAIL_PAYLOAD_KEY", "MAIL_FROM_MFA", "MAIL_FROM_CONTACT", "MSMTP_CONFIG"];
 for (const key of required) if (!process.env[key]) throw new Error(`${key} fehlt.`);
@@ -82,6 +83,7 @@ function send(account, content) {
 }
 // An interrupted send is ambiguous; do not resend it automatically.
 db.prepare("UPDATE email_outbox SET status='failed' WHERE status='processing'").run();
+db.prepare("DELETE FROM email_outbox WHERE type='event_deletion_summary' AND status IN ('sent','failed')").run();
 const rows = db.prepare("SELECT * FROM email_outbox WHERE status='pending' AND (scheduled_at IS NULL OR scheduled_at<=?) ORDER BY COALESCE(scheduled_at,created_at),created_at LIMIT 50").all(Date.now());
 for (const row of rows) {
   db.exec("BEGIN IMMEDIATE");
@@ -101,10 +103,19 @@ for (const row of rows) {
     }
     await send(account, message(row, currentPayload));
     const sentAt=Date.now();
+    if(deleteCompletedSummary(db,row)){
+      process.stdout.write("Abschlussmail an SMTP übergeben; Versanddaten gelöscht.\n");
+      continue;
+    }
     db.prepare("UPDATE email_outbox SET status='sent', sent_at=?, payload_json='{}', recipient_email=CASE WHEN ? THEN 'redacted@invalid.local' ELSE recipient_email END WHERE id=? AND status='processing'").run(sentAt,dutyMail?1:0,row.id);
     if(row.type==="duty_reminder"&&row.duty_booking_id)db.prepare("UPDATE duty_bookings SET reminder_sent_at=? WHERE id=?").run(sentAt,row.duty_booking_id);
     process.stdout.write(`E-Mail an SMTP übergeben: ${row.id}\n`);
   } catch (error) {
+    if(deleteCompletedSummary(db,row)){
+      // SMTP diagnostics can contain recipients; do not persist them in the journal.
+      process.stderr.write("Abschlussmail fehlgeschlagen; Versanddaten gelöscht. Keine automatische Wiederholung.\n");
+      continue;
+    }
     db.prepare("UPDATE email_outbox SET status='failed', payload_json=CASE WHEN sensitive_expires_at IS NOT NULL AND sensitive_expires_at <= ? THEN '{}' ELSE payload_json END, recipient_email=CASE WHEN ? THEN 'redacted@invalid.local' ELSE recipient_email END WHERE id=? AND status='processing'").run(Date.now(),dutyMail?1:0,row.id);
     process.stderr.write(`E-Mail-Auftrag fehlgeschlagen (${row.id}): ${error.message}\n`);
   }

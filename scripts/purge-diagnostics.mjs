@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import {purgeOperationalMail} from "./operational-mail-retention.mjs";
 
 const file = process.env.DATABASE_PATH;
 if (!file || !path.isAbsolute(file)) throw new Error("DATABASE_PATH muss absolut sein.");
@@ -34,6 +35,7 @@ try {
   db.prepare("UPDATE support_tickets SET requester_helper_id=NULL WHERE requester_helper_id IN (SELECT id FROM due_helpers)").run();
   db.prepare("DELETE FROM alert_recipients WHERE helper_id IN (SELECT id FROM due_helpers)").run();
   const result = {
+    ...purgeOperationalMail(db,now),
     crashReportsDeleted: db.prepare("DELETE FROM app_crash_reports WHERE created_at < ?").run(now - 30 * day).changes,
     // Hourly execution plus a 47-hour threshold keeps hashed network entries below 48 hours.
     rateLimitsDeleted: db.prepare("DELETE FROM auth_rate_limits WHERE updated_at < ? AND (blocked_until IS NULL OR blocked_until < ?)").run(now - 47 * 3600000, now).changes,

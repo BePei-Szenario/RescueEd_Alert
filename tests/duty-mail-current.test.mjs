@@ -37,5 +37,18 @@ test("linked reminder checks booking, event and current code",()=>{
 });
 test("unrelated mail and cancellation notices retain their payload",()=>{
  const db=fixture();
- try{for(const type of ["security_code","duty_invitation","duty_cancellation"])assert.equal(currentDutyMail(db,{...row,type},payload),payload)}finally{db.close()}
+ try{for(const type of ["security_code","duty_cancellation"])assert.equal(currentDutyMail(db,{...row,type},payload),payload)}finally{db.close()}
+});
+test("invitation mail requires a current unused invitation for the same event and recipient",()=>{
+ const db=fixture(),token="ab".repeat(32),data={invitationUrl:`https://localhost:3000/dienstplan/${token}`},mail={...row,type:"duty_invitation"};
+ try{
+  db.exec("CREATE TABLE duty_invitations(id TEXT,event_id TEXT,token_hash TEXT,used_at INTEGER,expires_at INTEGER,email_hash TEXT)");
+  db.prepare("INSERT INTO duty_invitations VALUES('i','event-1',?,NULL,?,?)").run(hash(token),Date.now()+60000,hash("person@example.test"));
+  assert.equal(currentDutyMail(db,mail,data),data);
+  assert.equal(currentDutyMail(db,{...mail,event_id:"event-2"},data),null);
+  assert.equal(currentDutyMail(db,{...mail,recipient_email:"other@example.test"},data),null);
+  db.exec("UPDATE duty_invitations SET used_at=1"); assert.equal(currentDutyMail(db,mail,data),null);
+  db.exec("UPDATE duty_invitations SET used_at=NULL,expires_at=1"); assert.equal(currentDutyMail(db,mail,data),null);
+  db.exec("DELETE FROM duty_invitations"); assert.equal(currentDutyMail(db,mail,data),null);
+ }finally{db.close()}
 });

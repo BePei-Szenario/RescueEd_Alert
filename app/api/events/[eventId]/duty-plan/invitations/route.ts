@@ -7,7 +7,7 @@ import {senderFor} from "@/lib/email-settings";
 import {eventAuthenticated,ownedEvent} from "@/lib/event-access";
 import {consumeRateLimit,rateLimited} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
-import {outboxPayloadExpiresAt,sensitiveEmailPayload} from "@/lib/secure-email-payload";
+import {sensitiveEmailPayload} from "@/lib/secure-email-payload";
 import {id,tokenHash} from "@/lib/security";
 import {dutyInvitationExpiresAt,dutyInvitationUrl} from "@/lib/duty-invitation.mjs";
 
@@ -25,7 +25,7 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   const payload=await sensitiveEmailPayload(request,mailId,"duty_invitation",JSON.stringify({template:"duty_invitation",message:`Sie wurden eingeladen, freie Dienste für „${authorization.event.name}“ auszuwählen.`,invitationUrl:url,expiresAt:expiresAt.toISOString(),organizationName:organization.name,customerSignature:organization.signature}));
   await db.batch([
    db.insert(dutyInvitations).values({id:invitationId,eventId:authorization.event.id,emailHash:await hashDutyEmail(email),emailEncrypted:await encryptDutyEmail(email,"invitation",invitationId,authorization.event.id),tokenHash:await tokenHash(raw),expiresAt,organizerNote,createdByUserId:authorization.user.id,createdAt:now}),
-   db.insert(emailOutbox).values({id:mailId,userId:authorization.user.id,eventId:authorization.event.id,type:"duty_invitation",senderEmail,recipientEmail:email,subject:`Dienstplan-Einladung · ${authorization.event.name}`,payloadJson:payload,sensitiveExpiresAt:outboxPayloadExpiresAt(now),createdAt:now})
+   db.insert(emailOutbox).values({id:mailId,userId:authorization.user.id,eventId:authorization.event.id,type:"duty_invitation",senderEmail,recipientEmail:email,subject:`Dienstplan-Einladung · ${authorization.event.name}`,payloadJson:payload,sensitiveExpiresAt:expiresAt,createdAt:now})
   ]);
   return Response.json({ok:true,invitation:{id:invitationId,expiresAt}},{status:201});
  }catch(error){console.error("duty_invitation_create_failed",error);return Response.json({error:"Einladung konnte nicht versendet werden."},{status:500})}
