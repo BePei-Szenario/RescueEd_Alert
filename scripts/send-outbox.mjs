@@ -2,6 +2,7 @@ import { createDecipheriv } from "node:crypto";
 import { spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { currentDutyMail } from "./duty-mail-current.mjs";
+import { canonicalDutyInvitationUrl } from "../lib/duty-invitation.mjs";
 
 const required = ["DATABASE_PATH", "PUBLIC_BASE_URL", "EMAIL_PAYLOAD_KEY", "MAIL_FROM_MFA", "MAIL_FROM_CONTACT", "MSMTP_CONFIG"];
 for (const key of required) if (!process.env[key]) throw new Error(`${key} fehlt.`);
@@ -47,7 +48,7 @@ function body(data) {
   if (data.template === "withdrawal_confirmation") {
     lines.push("", `Widerrufsreferenz: ${data.withdrawalReference}`, `Eingegangen am: ${data.requestedAt}`, `Store: ${data.store}`, `Produkt: ${data.productId}`, "", String(data.statement || ""), "", "Der Widerruf wird geprüft und eine erforderliche Rückerstattung über den beim Kauf verwendeten Store bearbeitet. Die Kündigung künftiger Verlängerungen ist davon getrennt.");
   }
-  if (data.template === "duty_invitation") lines.push("", `Dienstplan öffnen: ${data.invitationUrl}`, `Der Link ist bis ${berlin(data.expiresAt)} gültig.`);
+  if (data.template === "duty_invitation") lines.push("", `Dienstplan öffnen: ${canonicalDutyInvitationUrl(data.invitationUrl, origin.href)}`, `Der Link ist bis ${berlin(data.expiresAt)} gültig.`);
   if (["duty_confirmation", "duty_reminder", "duty_cancellation"].includes(data.template)) for (const duty of Array.isArray(data.duties) ? data.duties : []) {
     lines.push("", String(duty.title || "Dienst"), `${berlin(duty.startAt)} bis ${berlin(duty.endAt)}`, `Einsatzmittel: ${duty.assignmentName || "–"}`);
     if (duty.code) lines.push(`Persönlicher Dienstcode: ${duty.code}`);

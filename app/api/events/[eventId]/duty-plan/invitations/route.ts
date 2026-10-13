@@ -9,6 +9,7 @@ import {consumeRateLimit,rateLimited} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {outboxPayloadExpiresAt,sensitiveEmailPayload} from "@/lib/secure-email-payload";
 import {id,tokenHash} from "@/lib/security";
+import {dutyInvitationExpiresAt,dutyInvitationUrl} from "@/lib/duty-invitation.mjs";
 
 export async function POST(request:Request,{params}:{params:Promise<{eventId:string}>}){
  const bad=rejectCrossSiteMutation(request);if(bad)return bad;
@@ -18,7 +19,9 @@ export async function POST(request:Request,{params}:{params:Promise<{eventId:str
   if(!organization.signature.trim())return Response.json({error:"Bitte zuerst die eigene E-Mail-Signatur im Dienstplan speichern."},{status:409});
   const limit=await consumeRateLimit({scope:"duty-invitation",subject:authorization.user.id,limit:50,windowMs:60*60_000});if(!limit.allowed)return rateLimited(limit.retryAfterSeconds);
   const body=await request.json() as {email?:unknown;organizerNote?:unknown},email=normalizeDutyEmail(typeof body.email==="string"?body.email:""),organizerNote=cleanDutyText(body.organizerNote,1000)||null;if(!validDutyEmail(email))return Response.json({error:"Bitte eine gültige E-Mail-Adresse angeben."},{status:400});
-  const invitationId=id("din"),mailId=id("mail"),raw=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-",""),now=new Date(),expiresAt=new Date(now.getTime()+60*60_000),origin=new URL(request.url).origin,url=`${origin}/dienstplan/${encodeURIComponent(raw)}`,senderEmail=await senderFor("mfa");
+  const invitationId=id("din"),mailId=id("mail"),raw=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-",""),now=new Date(),expiresAt=dutyInvitationExpiresAt(now);
+  const development=process.env.NODE_ENV!=="production",baseUrl=process.env.PUBLIC_BASE_URL?.trim()||(development?new URL(request.url).origin:"");
+  const url=dutyInvitationUrl(raw,baseUrl,development),senderEmail=await senderFor("mfa");
   const payload=await sensitiveEmailPayload(request,mailId,"duty_invitation",JSON.stringify({template:"duty_invitation",message:`Sie wurden eingeladen, freie Dienste für „${authorization.event.name}“ auszuwählen.`,invitationUrl:url,expiresAt:expiresAt.toISOString(),organizationName:organization.name,customerSignature:organization.signature}));
   await db.batch([
    db.insert(dutyInvitations).values({id:invitationId,eventId:authorization.event.id,emailHash:await hashDutyEmail(email),emailEncrypted:await encryptDutyEmail(email,"invitation",invitationId,authorization.event.id),tokenHash:await tokenHash(raw),expiresAt,organizerNote,createdByUserId:authorization.user.id,createdAt:now}),
