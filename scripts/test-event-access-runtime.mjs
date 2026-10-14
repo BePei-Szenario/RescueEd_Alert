@@ -74,13 +74,23 @@ try{
   assert.equal(alarmUnit.activeHelperCount,1);
   assert.equal(alarmUnit.activeQrHelperCount,0,"QR-Anwesenheit allein darf keine Alarmierbarkeit vortäuschen.");
   db.prepare("INSERT INTO helper_devices (id,helper_id,platform,last_seen_at,push_token_hash,push_token_encrypted) VALUES (?,?,?,?,?,?)").run(`dev_${randomUUID()}`,alarmHelperId,"android",now,hash(randomUUID()),"test-only-not-a-real-push-token");
+  const futureShiftId=`shift_${randomUUID()}`;
+  db.prepare("INSERT INTO duty_shifts(id,event_id,assignment_id,title,start_at,end_at,capacity,reserved_count,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,2,0,?,?)").run(futureShiftId,eventId,assignmentId,"Spätdienst",now+3600000,now+7200000,owner.id,now);
   const connectedPayload=await (await request(`/api/events/${eventId}`,{},alarmCookie)).json();
+  const futureShift=connectedPayload.assignments.find(item=>item.id===assignmentId).dutyShifts[0];
+  assert.equal(futureShift.title,"Spätdienst");assert.equal(futureShift.startAt,new Date(now+3600000).toISOString());assert.equal(futureShift.endAt,new Date(now+7200000).toISOString());assert.equal(futureShift.upcoming,true);
+  const recorderDetail=await (await request(`/api/events/${eventId}`,{},helperCookie)).json();
+  assert.equal(recorderDetail.assignments.find(item=>item.id===assignmentId).dutyShifts.length,0,"Nur Helfererfassung erhält keine Einsatz-Schichtzeiten.");
   assert.equal(connectedPayload.assignments.find(item=>item.id===assignmentId).activeQrHelperCount,1,"Ein aktives verbundenes Gerät macht den Helfer alarmierbar.");
   assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({firstName:"Nicht",lastName:"Erlaubt",qualification:"Test"})},alarmCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/assignments`,{method:"POST",body:JSON.stringify({name:"Nicht erlaubt"})},alarmCookie)).status,403);
   assert.equal((await request(`/api/events/${eventId}/alerts`,{},alarmCookie)).status,200);
   for(let attempt=0;attempt<12;attempt++)assert.equal((await request(`/api/events/${eventId}/alerts`,{method:"POST",body:JSON.stringify({assignmentIds:[assignmentId],message:`Test ${attempt}`})},alarmCookie)).status,201);
   assert.equal((await request(`/api/events/${eventId}/alerts`,{method:"POST",body:JSON.stringify({assignmentIds:[assignmentId],message:"Zu viel"})},alarmCookie)).status,429,"Alarmierungsrollen müssen nach zwölf Alarmen pro Minute gedrosselt werden.");
+  db.prepare("UPDATE duty_shifts SET start_at=? WHERE id=?").run(now-1000,futureShiftId);
+  const startedPayload=await (await request(`/api/events/${eventId}`,{},alarmCookie)).json();
+  assert.equal(startedPayload.assignments.find(item=>item.id===assignmentId).dutyShifts[0].upcoming,false);
+  db.prepare("DELETE FROM duty_shifts WHERE id=?").run(futureShiftId);
 
   const managerCookie=await login(codeFor.event_manager);
   assert.ok(managerCookie);
@@ -93,6 +103,33 @@ try{
   db.prepare("UPDATE events SET helper_limit=? WHERE id=?").run(activeHelpers,eventId);
   const capacityBlocked=await request("/api/attendance",{method:"POST",body:JSON.stringify({eventId,code:codeFor.helper_attendance,action:"come",firstName:"Zu",lastName:"Viel",qualification:"SanHelfer"})});
   assert.equal(capacityBlocked.status,409,"Der gemeinsame Helferlogin darf das Helferlimit nicht überschreiten.");
+
+  const beforePlan=await (await request(`/api/events/${eventId}/helpers`,{},helperCookie)).json();
+  assert.equal(beforePlan.usesDutyPlan,false);
+  db.prepare("UPDATE events SET helper_limit=30 WHERE id=?").run(eventId);
+  const shiftId=`shift_${randomUUID()}`,bookingId=`booking_${randomUUID()}`,secondBookingId=`booking_${randomUUID()}`;
+  db.prepare("INSERT INTO duty_shifts(id,event_id,assignment_id,title,start_at,end_at,capacity,reserved_count,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,3,0,?,?)").run(shiftId,eventId,assignmentId,"Testdienst",now,now+3600000,owner.id,now);
+  const insertBooking=db.prepare("INSERT INTO duty_bookings(id,shift_id,first_name,last_name,email_hash,email_encrypted,qualification,code_hash,code_encrypted,created_at) VALUES(?,?,?,?,?,'test-only','SanH',?,'test-only',?)");
+  insertBooking.run(bookingId,shiftId,"Geplant","Code",hash("code@example.test"),hash("12345678"),now);
+  insertBooking.run(secondBookingId,shiftId,"Geplant","Liste",hash("list@example.test"),hash("87654321"),now);
+  assert.equal((await request(`/api/events/${eventId}/helpers`)).status,401);
+  assert.equal((await request(`/api/events/${eventId}/helpers`,{},alarmCookie)).status,403);
+  const options=await (await request(`/api/events/${eventId}/helpers`,{},helperCookie)).json();
+  assert.equal(options.usesDutyPlan,true);assert.equal(options.bookings.length,2);
+  assert.equal(options.bookings[0].code,undefined);assert.equal(options.bookings[0].email,undefined);
+  assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({firstName:"Nicht",lastName:"Geplant",qualification:"SanH"})},helperCookie)).status,400);
+  assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({bookingId})},alarmCookie)).status,403);
+  const entered=await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({dutyCode:"1234 5678"})},helperCookie);
+  assert.equal(entered.status,201);const enteredData=await entered.json();
+  assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({bookingId})},helperCookie)).status,409);
+  assert.equal((await request(`/api/events/${eventId}/helpers`,{method:"POST",body:JSON.stringify({bookingId:secondBookingId})},helperCookie)).status,201);
+  const manual=db.prepare("SELECT registered_at,registration_source FROM helpers WHERE id=?").get(enteredData.helperId);
+  assert.equal(manual.registration_source,"manual");
+  const connected=await request("/api/attendance",{method:"POST",body:JSON.stringify({eventId,code:codeFor.helper_attendance,action:"come",checkInMethod:"duty-code",dutyCode:"12345678"})});
+  assert.equal(connected.status,201);assert.equal((await connected.json()).helperId,enteredData.helperId);
+  const afterConnect=db.prepare("SELECT registered_at,registration_source FROM helpers WHERE id=?").get(enteredData.helperId);
+  assert.equal(afterConnect.registration_source,"qr");assert.equal(afterConnect.registered_at,manual.registered_at);
+  assert.equal((await (await request(`/api/events/${eventId}/helpers`,{},helperCookie)).json()).bookings.length,0);
 
   assert.equal((await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"BADCD2EF"})})).status,401);
   process.stdout.write("Event-Code-Rollen und serverseitige Rechteprüfung bestanden.\n");

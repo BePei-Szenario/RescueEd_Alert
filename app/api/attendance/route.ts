@@ -44,7 +44,7 @@ export async function POST(request:Request){
      if(manualMatches.length>1)throw new DutyCodeConflict("Mehrere manuelle Einträge haben denselben Namen. Bitte zuerst den Veranstalter um eindeutige Zuordnung bitten.");
      const manual=manualMatches[0],targetId=manual?.id||helperId;
      if(manual){
-      const updated=connection.prepare(`UPDATE helpers SET assignment_id=?,name=?,first_name=?,last_name=?,qualification=?,session_token_hash=?,registration_source='qr',registered_at=? WHERE id=? AND event_id=? AND removed_at IS NULL AND registration_source='manual'`).run(booking.assignment_id,`${booking.first_name} ${booking.last_name}`,booking.first_name,booking.last_name,booking.qualification||"Nicht angegeben",sessionTokenHash,registeredAt,manual.id,event.id);
+      const updated=connection.prepare(`UPDATE helpers SET assignment_id=?,name=?,first_name=?,last_name=?,qualification=?,session_token_hash=?,registration_source='qr' WHERE id=? AND event_id=? AND removed_at IS NULL AND registration_source='manual'`).run(booking.assignment_id,`${booking.first_name} ${booking.last_name}`,booking.first_name,booking.last_name,booking.qualification||"Nicht angegeben",sessionTokenHash,manual.id,event.id);
       if(Number(updated.changes)!==1)throw new DutyCodeConflict("Der manuelle Eintrag konnte nicht mit diesem Gerät verbunden werden.");
      }else{
       const active=(connection.prepare("SELECT COUNT(*) AS count FROM helpers WHERE event_id=? AND removed_at IS NULL").get(event.id) as {count:number}).count;

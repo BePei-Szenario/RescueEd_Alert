@@ -66,6 +66,11 @@
 .unplanned-helper-badge { display: inline-flex; margin-left: .45rem; border-radius: 999px; background: #ffedd5; padding: .15rem .45rem; color: #9a3412; font-size: .66rem; font-style: normal; font-weight: 900; line-height: 1.3; vertical-align: middle; }
 .helper-person:has(.unplanned-helper-badge) { border-radius: .55rem; background: #fff7ed; padding: .35rem .45rem; }
 
+.assignment-duty-times { display: grid; gap: .5rem; margin: .65rem 0; min-width: 0; }
+.assignment-duty-time { display: grid; gap: .2rem; padding: .55rem .65rem; background: #f1f5f9; border-radius: .5rem; font-size: .75rem; color: #334155; overflow-wrap: anywhere; }
+.assignment-duty-time strong { color: #10223d; }
+.assignment-duty-time .assignment-duty-warning { display: block; margin-top: .3rem; padding: .4rem .5rem; border-left: 3px solid #b45309; background: #fff7ed; color: #9a3412; font-size: .75rem; line-height: 1.45; }
+
 @media print {
   .dashboard-tabs { display: none !important; }
   .dashboard-pages { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
