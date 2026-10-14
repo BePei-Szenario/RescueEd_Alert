@@ -41,6 +41,15 @@ flutter run -d <GERAETE-ID> --dart-define=RESCUEED_API_URL=http://127.0.0.1:5173
 
 ## Produktionsbuild Android
 
+Version 1.0.7 (Build 9) enthält den Check-in mit persönlichem achtstelligem
+Dienstcode nach einem QR-Scan auf dem Helfergerät. Spontaner Check-in und
+QR-Abmeldung bleiben verfügbar; die Dienstplanung selbst bleibt im Browser.
+Der Lockfile-Stand ist mit Flutter 3.41.9 / Dart 3.11.5 aufgelöst.
+
+Vor Freigabe auf einem echten Android-Gerät prüfen: Event-QR scannen,
+Dienstcode einlösen, Alarm empfangen und bestätigen, anschließend per
+Gehen-QR ausbuchen. Automatisierte Tests ersetzen diesen Gerätetest nicht.
+
 ```powershell
 flutter build appbundle --release --dart-define=RESCUEED_API_URL=https://alert-rescueed.de
 ```
