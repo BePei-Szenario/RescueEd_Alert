@@ -1,0 +1,12 @@
+.deletion-page{min-height:100vh;padding:clamp(16px,4vw,48px);background:#eef3f9;color:#10223d;font-family:Arial,sans-serif;line-height:1.65}
+.deletion-page article{max-width:850px;margin:auto;padding:clamp(20px,4vw,44px);background:white;border-radius:16px;border-top:5px solid #1769e0;overflow-wrap:anywhere}
+.deletion-page h1{font-size:clamp(1.8rem,5vw,2.6rem);line-height:1.2;margin:.5rem 0 1rem}
+.deletion-page h2{font-size:1.3rem;line-height:1.35;margin:0 0 1rem}
+.deletion-page section{margin-top:2rem;padding-top:1.5rem;border-top:1px solid #d0dbe8}
+.deletion-page a{color:#1054ba;text-decoration:underline;text-underline-offset:3px}
+.deletion-page a:focus-visible{outline:3px solid #10223d;outline-offset:5px}
+.deletion-page li{margin:.65rem 0}.deletion-page ul,.deletion-page ol{padding-left:1.4rem}
+.deletion-page .deletion-brand{font-weight:700;margin-top:1.5rem}
+.deletion-page .deletion-request{background:#f3f7fd;border:1px solid #c5d6ed;padding:clamp(16px,3vw,24px);border-radius:12px}
+.deletion-page .deletion-action{display:inline-block;background:#1054ba;color:white;padding:12px 18px;border-radius:8px;font-weight:700}
+@media print{.deletion-page{padding:0;background:white}.deletion-page article{padding:0;border:0}.deletion-page .deletion-action{background:white;color:#10223d}.deletion-back{display:none}}
