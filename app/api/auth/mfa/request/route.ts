@@ -7,6 +7,7 @@ import {consumeRateLimit,rateLimited,requestNetwork} from "@/lib/rate-limit";
 import {rejectCrossSiteMutation} from "@/lib/request-security";
 import {sensitiveEmailPayload} from "@/lib/secure-email-payload";
 import {id,tokenHash} from "@/lib/security";
+import {googleReviewMfaCode} from "@/lib/app-review-login";
 
 export async function POST(request:Request){
  try{
@@ -18,9 +19,9 @@ export async function POST(request:Request){
   if(!challengeLimit.allowed)return rateLimited(challengeLimit.retryAfterSeconds);
   const db=getDb(),now=new Date(),[token]=await db.select().from(securityTokens).where(and(eq(securityTokens.challengeHash,challengeHash),eq(securityTokens.purpose,"mfa"),isNull(securityTokens.usedAt),gt(securityTokens.expiresAt,now))).limit(1);
   if(!token)return Response.json({error:"Anmeldevorgang ungültig oder abgelaufen."},{status:401});
-  const [user]=await db.select({id:users.id,email:users.email,status:users.status}).from(users).where(eq(users.id,token.userId)).limit(1);
+  const [user]=await db.select({id:users.id,email:users.email,status:users.status,accountType:users.accountType,role:users.role}).from(users).where(eq(users.id,token.userId)).limit(1);
   if(!user||user.status!=="active")return Response.json({error:"Anmeldevorgang ungültig oder abgelaufen."},{status:401});
-  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail");
+  const code=googleReviewMfaCode(user)??String(crypto.getRandomValues(new Uint32Array(1))[0]%1_000_000).padStart(6,"0"),expiresAt=new Date(now.getTime()+10*60_000),senderEmail=await senderFor("mfa"),mailId=id("mail");
   const payload=await sensitiveEmailPayload(request,mailId,"mfa",emailPayload({template:"security_code",securityCode:code,expiresAt:expiresAt.toISOString(),message:"Mit diesem Sicherheitscode schließen Sie Ihre Anmeldung bei RescueEd Alert ab."}));
   const rotated=await db.update(securityTokens)
    .set({tokenHash:await tokenHash(code),attempts:0,sends:sql`${securityTokens.sends} + 1`,expiresAt})
