@@ -131,6 +131,23 @@ try{
   assert.equal(afterConnect.registration_source,"qr");assert.equal(afterConnect.registered_at,manual.registered_at);
   assert.equal((await (await request(`/api/events/${eventId}/helpers`,{},helperCookie)).json()).bookings.length,0);
 
+  const direct=await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"8765 4321"})});
+  assert.equal(direct.status,201);assert.equal(direct.headers.get("set-cookie"),null);
+  const directData=await direct.json();assert.equal(directData.flow,"helper_checked_in");assert.equal(directData.eventId,eventId);assert.ok(directData.helperToken);assert.equal(directData.permissions,undefined);
+  assert.equal(db.prepare("SELECT session_token_hash FROM helpers WHERE id=?").get(directData.helperId).session_token_hash,hash(directData.helperToken));
+  assert.equal((await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"87654321"})})).status,409);
+  assert.equal((await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"12345678"})})).status,409,"QR-redeemed codes cannot be reused in direct login");
+  const directBookingId=`booking_${randomUUID()}`;
+  insertBooking.run(directBookingId,shiftId,"Direkt","OhneQR",hash("direct@example.test"),hash("01020304"),now);
+  const fresh=await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"01020304"})});
+  assert.equal(fresh.status,201);const freshData=await fresh.json();
+  assert.equal(db.prepare("SELECT helper_id FROM duty_bookings WHERE id=?").get(directBookingId).helper_id,freshData.helperId);
+  assert.equal((await request("/api/attendance",{method:"POST",body:JSON.stringify({eventId,code:codeFor.helper_attendance,action:"come",checkInMethod:"duty-code",dutyCode:"01020304"})})).status,409,"Directly redeemed codes cannot be reused through QR");
+  insertBooking.run(`booking_${randomUUID()}`,shiftId,"Zu","Frueh",hash("early@example.test"),hash("10101010"),now);
+  db.prepare("UPDATE events SET event_date='2099-01-01',end_date='2099-01-01' WHERE id=?").run(eventId);
+  assert.equal((await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"10101010"})})).status,401);
+  db.prepare("UPDATE events SET event_date=?,end_date=? WHERE id=?").run(eventDate,eventDate,eventId);
+
   assert.equal((await request("/api/auth/event-code",{method:"POST",body:JSON.stringify({code:"BADCD2EF"})})).status,401);
   process.stdout.write("Event-Code-Rollen und serverseitige Rechteprüfung bestanden.\n");
 }finally{

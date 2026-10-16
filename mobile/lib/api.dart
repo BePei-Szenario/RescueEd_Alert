@@ -113,7 +113,10 @@ class ApiClient {
         ? null
         : RegExp(r'rescueed_event_session=([^;]+)').firstMatch(cookie);
     final data = _decode(response);
-    if (data['flow'] == 'helper_attendance') return data;
+    if (data['flow'] == 'helper_attendance' ||
+        data['flow'] == 'helper_checked_in') {
+      return data;
+    }
     if (match == null) {
       throw ApiException(
         'Der Event-Zugang konnte nicht gespeichert werden.',

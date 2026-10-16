@@ -314,7 +314,7 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
                       child: Padding(
                         padding: EdgeInsets.all(14),
                         child: Text(
-                          'Ein persönlicher Dienstcode kann nur verwendet werden, nachdem du den Event-QR-Code mit diesem Gerät gescannt hast.',
+                          'Für einen persönlichen Dienstcode scanne hier den Event-QR-Code oder nutze direkt den Codelogin auf der Startseite.',
                         ),
                       ),
                     ),

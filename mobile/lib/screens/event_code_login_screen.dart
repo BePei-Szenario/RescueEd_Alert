@@ -39,9 +39,10 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
       RegExp(r'[\s-]'),
       '',
     );
-    if (!RegExp(r'^[A-HJ-NP-Z2-9]{8}$').hasMatch(value)) {
+    if (!RegExp(r'^(?:[A-HJ-NP-Z2-9]{8}|[0-9]{8})$').hasMatch(value)) {
       setState(
-        () => error = 'Bitte einen gültigen achtstelligen Event-Code eingeben.',
+        () => error =
+            'Bitte einen gültigen achtstelligen Dienst- oder Freigabecode eingeben.',
       );
       return;
     }
@@ -51,6 +52,16 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
     });
     try {
       final result = await widget.api.loginWithEventCode(value);
+      if (result['flow'] == 'helper_checked_in') {
+        final eventId = result['eventId']?.toString() ?? '';
+        final token = result['helperToken']?.toString() ?? '';
+        if (eventId.isEmpty || token.isEmpty) {
+          throw ApiException('Der Helferlogin ist unvollständig.', 500);
+        }
+        await widget.store.saveHelperSession(eventId, token);
+        await widget.onHelperAuthenticated(HelperCredentials(eventId, token));
+        return;
+      }
       if (result['flow'] == 'helper_attendance') {
         final eventId = result['eventId']?.toString() ?? '';
         final attendanceCode = result['attendanceCode']?.toString() ?? value;
@@ -104,7 +115,7 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
         const Icon(Icons.key_outlined, color: Color(0xff146ee8), size: 58),
         const SizedBox(height: 16),
         Text(
-          'Event mit Code öffnen',
+          'Dienst- oder Freigabecode eingeben',
           textAlign: TextAlign.center,
           style: Theme.of(
             context,
@@ -112,21 +123,21 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Keine E-Mail und kein Passwort erforderlich. Helfer können sich selbst einchecken; Bediencodes öffnen nur die freigegebenen Funktionen.',
+          'Mit deiner Schichtnummer direkt einchecken – auch ohne QR-Scan. Freigabecodes öffnen die erlaubten Funktionen, zum Beispiel die Alarmierung.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 30),
         TextField(
           controller: code,
           autofocus: true,
-          maxLength: 8,
+          maxLength: 12,
           textCapitalization: TextCapitalization.characters,
           autocorrect: false,
           enableSuggestions: false,
           onSubmitted: (_) => busy ? null : submit(),
           decoration: const InputDecoration(
-            labelText: 'Event-Code',
-            hintText: 'z. B. AB12CD34',
+            labelText: 'Dienstcode / Freigabecode',
+            hintText: '1234 5678 oder AB23CD45',
             prefixIcon: Icon(Icons.key_outlined),
           ),
         ),

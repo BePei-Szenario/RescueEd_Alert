@@ -41,8 +41,11 @@ flutter run -d <GERAETE-ID> --dart-define=RESCUEED_API_URL=http://127.0.0.1:5173
 
 ## Produktionsbuild Android
 
-Version 1.0.7 (Build 9) enthält den Check-in mit persönlichem achtstelligem
-Dienstcode nach einem QR-Scan auf dem Helfergerät. Spontaner Check-in und
+Version 1.0.8 (Build 10) enthält den Check-in mit persönlichem achtstelligem
+Dienstcode direkt im Codelogin oder nach einem QR-Scan auf dem Helfergerät.
+Das gleiche Loginfeld akzeptiert weiterhin Freigabecodes für Bedienrollen.
+Der Server muss den Antworttyp `helper_checked_in` unterstützen, bevor diese
+App-Version veröffentlicht wird. Spontaner Check-in und
 QR-Abmeldung bleiben verfügbar; die Dienstplanung selbst bleibt im Browser.
 Der Lockfile-Stand ist mit Flutter 3.41.9 / Dart 3.11.5 aufgelöst.
 
