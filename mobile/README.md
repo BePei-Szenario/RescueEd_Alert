@@ -54,7 +54,7 @@ Dienstcode einlösen, Alarm empfangen und bestätigen, anschließend per
 Gehen-QR ausbuchen. Automatisierte Tests ersetzen diesen Gerätetest nicht.
 
 ```powershell
-flutter build appbundle --release --dart-define=RESCUEED_API_URL=https://alert-rescueed.de
+flutter build appbundle --release --dart-define=RESCUEED_API_URL=https://alert-rescueed.de --dart-define=GOOGLE_SUBSCRIPTION_ID=rescueed_private_monthly
 ```
 
 Vor Veröffentlichung muss `android/key.properties` mit dem eigenen, sicher verwahrten Upload-Key konfiguriert werden. Ohne diese Datei wird ein Release **nicht** mit dem Debug-Schlüssel signiert. Weder `key.properties` noch Keystore-Dateien gehören in Git.

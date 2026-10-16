@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.util.Base64
 
 plugins {
     id("com.android.application")
@@ -64,4 +65,20 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+// Fail before compiling a release that cannot load the private Google Play abo.
+tasks.configureEach {
+    if (name == "compileFlutterBuildRelease") {
+        doFirst {
+            val defines = (project.findProperty("dart-defines") as? String)
+                .orEmpty().split(',').filter { it.isNotBlank() }
+                .map { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }
+            val productId = defines.firstOrNull { it.startsWith("GOOGLE_SUBSCRIPTION_ID=") }
+                ?.substringAfter('=')?.trim().orEmpty()
+            check(productId.isNotEmpty()) {
+                "Release blocked: pass --dart-define=GOOGLE_SUBSCRIPTION_ID=<verified Google Play product ID>."
+            }
+        }
+    }
 }
