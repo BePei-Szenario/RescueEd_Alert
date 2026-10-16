@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import 'package:flutter/services.dart';
 import '../api.dart';
 
@@ -307,7 +308,7 @@ class _EventCreateScreenState extends State<EventCreateScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       title: Text(
         widget.consumer

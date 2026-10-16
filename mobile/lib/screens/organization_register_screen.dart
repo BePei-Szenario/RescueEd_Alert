@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 
 import '../api.dart';
 import '../legal_documents.dart';
@@ -138,7 +139,7 @@ class _OrganizationRegisterScreenState
   };
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       title: const Text('Organisation registrieren'),
       leading: IconButton(

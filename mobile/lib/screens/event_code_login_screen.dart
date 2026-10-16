@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import '../api.dart';
 import '../session_store.dart';
 import 'qr_flow.dart';
@@ -100,7 +101,7 @@ class _EventCodeLoginScreenState extends State<EventCodeLoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       leading: IconButton(
         onPressed: widget.onBack,

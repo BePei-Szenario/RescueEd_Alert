@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../api.dart';
 import '../session_store.dart';
@@ -197,7 +198,7 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
   Widget build(BuildContext context) {
     final leave = qr?.queryParameters['mode'] == 'leave';
     final event = info?['event'] as Map<String, dynamic>?;
-    return Scaffold(
+    return SafeScaffold(
       appBar: AppBar(
         title: Text(
           qr == null
@@ -290,18 +291,14 @@ class _QrAttendanceFlowState extends State<QrAttendanceFlow> {
                         children: [
                           RadioListTile<bool>(
                             value: true,
-                            title: const Text(
-                              'Mit persönlichem Dienstcode',
-                            ),
+                            title: const Text('Mit persönlichem Dienstcode'),
                             subtitle: const Text(
                               'Übernimmt deinen gebuchten Dienst und verbindet dieses Gerät für Alarmierungen.',
                             ),
                           ),
                           RadioListTile<bool>(
                             value: false,
-                            title: const Text(
-                              'Ohne Dienstcode einchecken',
-                            ),
+                            title: const Text('Ohne Dienstcode einchecken'),
                             subtitle: const Text(
                               'Für spontane Helfer ohne vorherige Dienstbuchung.',
                             ),

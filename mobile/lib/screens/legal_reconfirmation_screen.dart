@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import '../api.dart';
 import '../legal_documents.dart';
 import '../legal_document_viewer.dart';
@@ -76,7 +77,7 @@ class _LegalReconfirmationScreenState extends State<LegalReconfirmationScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(title: const Text('Aktuelle Rechtstexte')),
     body: loading
         ? const Center(child: CircularProgressIndicator())

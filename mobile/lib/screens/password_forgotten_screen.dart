@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import '../api.dart';
 
 class PasswordForgottenScreen extends StatefulWidget {
@@ -46,7 +47,7 @@ class _PasswordForgottenScreenState extends State<PasswordForgottenScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       leading: IconButton(
         onPressed: widget.onBack,

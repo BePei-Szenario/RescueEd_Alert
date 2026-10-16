@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 
 import '../alarm_tones.dart';
 import '../api.dart';
@@ -121,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(title: const Text('Einstellungen')),
     body: loading
         ? const Center(child: CircularProgressIndicator())

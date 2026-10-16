@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 
 import '../api.dart';
 import '../session_store.dart';
@@ -86,7 +87,7 @@ class _PasswordChangeScreenState extends State<PasswordChangeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(title: const Text('Passwort ändern')),
     body: ListView(
       padding: const EdgeInsets.all(16),

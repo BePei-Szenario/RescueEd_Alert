@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import 'package:intl/intl.dart';
 
 import '../api.dart';
@@ -183,7 +184,7 @@ class _OrganizationProfileScreenState extends State<OrganizationProfileScreen> {
     final invoices = _list(data?['invoices']);
     final documents = _list(data?['legalDocuments']);
     final acknowledgements = _list(data?['acknowledgements']);
-    return Scaffold(
+    return SafeScaffold(
       appBar: AppBar(
         title: const Text('Organisationsprofil'),
         actions: [

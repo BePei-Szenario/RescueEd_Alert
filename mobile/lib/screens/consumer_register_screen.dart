@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import '../api.dart';
 import '../legal_documents.dart';
 import '../legal_document_viewer.dart';
@@ -114,7 +115,7 @@ class _ConsumerRegisterScreenState extends State<ConsumerRegisterScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       title: const Text('Privatkonto registrieren'),
       leading: IconButton(

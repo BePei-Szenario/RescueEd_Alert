@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../api.dart';
 
@@ -217,7 +218,7 @@ class _SupportScreenState extends State<SupportScreen> {
   };
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(title: const Text('Support & Tickets')),
     body: ListView(
       padding: const EdgeInsets.all(18),

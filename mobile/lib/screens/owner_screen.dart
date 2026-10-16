@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
@@ -213,7 +214,7 @@ class _OwnerScreenState extends State<OwnerScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       title: const Text('Deine Events'),
       actions: [
@@ -950,7 +951,7 @@ class _OwnerEventScreenState extends State<OwnerEventScreen>
             (sum, unit) =>
                 sum + ((unit['activeHelperCount'] as num?)?.toInt() ?? 0),
           );
-    return Scaffold(
+    return SafeScaffold(
       appBar: AppBar(
         title: Text(event?['name'] ?? 'Event'),
         actions: [

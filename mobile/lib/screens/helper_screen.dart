@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 import 'package:intl/intl.dart';
 import '../api.dart';
 import '../event_period.dart';
@@ -269,7 +270,7 @@ class _HelperScreenState extends State<HelperScreen> {
         assignment = data?['assignment'] as Map<String, dynamic>?,
         alerts = (data?['alerts'] as List? ?? []).cast<Map<String, dynamic>>();
     final deployed = assignment?['operationalStatus'] == 'deployed';
-    return Scaffold(
+    return SafeScaffold(
       appBar: AppBar(
         title: const Text('Helferansicht'),
         actions: [

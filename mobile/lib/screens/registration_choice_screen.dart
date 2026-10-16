@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../safe_scaffold.dart';
 
 class RegistrationChoiceScreen extends StatelessWidget {
   const RegistrationChoiceScreen({
@@ -13,7 +14,7 @@ class RegistrationChoiceScreen extends StatelessWidget {
   final VoidCallback onOrganization;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SafeScaffold(
     appBar: AppBar(
       title: const Text('Konto registrieren'),
       leading: IconButton(
