@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api.dart';
+import '../event_period.dart';
 import '../alarm_monitor.dart';
 import '../alarm_tones.dart';
 import '../notifications.dart';
@@ -344,9 +345,7 @@ class _HelperScreenState extends State<HelperScreen> {
                             style: Theme.of(context).textTheme.headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.w900),
                           ),
-                          Text(
-                            '${_date(event?['eventDate'])} ${event?['startTime'] ?? '–'} Uhr – ${_date(event?['endDate'] ?? event?['eventDate'])} ${event?['endTime'] ?? '–'} Uhr',
-                          ),
+                          Text(formatEventPeriod(event)),
                           const Divider(height: 28),
                           Text(
                             '${helper?['firstName'] ?? ''} ${helper?['lastName'] ?? ''}',
@@ -495,14 +494,6 @@ class _HelperScreenState extends State<HelperScreen> {
               ),
             ),
     );
-  }
-}
-
-String _date(dynamic value) {
-  try {
-    return DateFormat('dd.MM.yyyy', 'de').format(DateTime.parse(value));
-  } catch (_) {
-    return '–';
   }
 }
 
