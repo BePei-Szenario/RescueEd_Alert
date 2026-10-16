@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../safe_scaffold.dart';
+import '../widgets/event_access_code_create.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
@@ -819,6 +820,16 @@ class _OwnerEventScreenState extends State<OwnerEventScreen>
                 ] else
                   const Text(
                     'Für dieses Event wurden keine Codelogins angelegt.',
+                  ),
+                if (data?['eventAccessCodes'] != null &&
+                    event?['status'] == 'active')
+                  EventAccessCodeCreate(
+                    api: widget.api,
+                    eventId: widget.eventId,
+                    existingRoles: codes
+                        .map((item) => item['role'].toString())
+                        .toSet(),
+                    onCreated: () => load(silent: true),
                   ),
               ],
             ),
